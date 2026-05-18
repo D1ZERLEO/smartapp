@@ -1,0 +1,69 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+html, body {
+  background: #f5f5f5;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Ассистент панель */
+.assistant-panel {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  background: white;
+  padding: 12px 16px;
+  border-radius: 16px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+  width: 90%;
+  max-width: 600px;
+  z-index: 1000;
+  align-items: center;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.assistant-input {
+  flex: 1;
+  border: none;
+  background: #f1f5f9;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 16px;
+  outline: none;
+}
+
+.assistant-btn {
+  background: #4f46e5;
+  color: white;
+  border: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: 0.2s;
+}
+
+.assistant-btn:hover { background: #3730a3; transform: scale(1.05); }
+.assistant-btn:disabled { background: #cbd5e1; cursor: not-allowed; transform: none; }
+.assistant-btn.listening { animation: pulse 1.5s infinite; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.7); }
+  50% { opacity: 0.8; box-shadow: 0 0 0 10px rgba(79, 70, 229, 0); }
+}
