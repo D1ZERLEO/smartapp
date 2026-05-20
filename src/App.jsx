@@ -70,7 +70,7 @@ function App() {
 
   const showToast = useCallback((msg) => {
     setToast(msg);
-    setTimeout(() => setToast(null), 3500);
+    setTimeout(() => setToast(null), 4500); //  Чуть дольше для ТВ
   }, []);
 
   const sendVoiceReply = useCallback((text) => {
@@ -82,6 +82,7 @@ function App() {
     }
   }, []);
 
+  // ✅ Функция для инициализации ассистента
   const handleAssistantReady = useCallback((assistant) => {
     assistantRef.current = assistant;
   }, []);
@@ -130,25 +131,25 @@ function App() {
     sendVoiceReply(`Добавлено ${meal.productName}, ${meal.calories} калорий.`);
   }, [showToast, sendVoiceReply]);
 
-  // ✅ НОВАЯ ФУНКЦИЯ: удаление конкретного приёма пищи по ID
+  // ✅ Удаление еды
   const handleDeleteFood = useCallback((mealId) => {
     const mealToDelete = mealsRef.current.find(m => m.id === mealId);
     if (!mealToDelete) return;
-
+    
     setMeals(prev => {
       const newMeals = prev.filter(m => m.id !== mealId);
       const all = JSON.parse(localStorage.getItem('nutrition_meals') || '[]');
       localStorage.setItem('nutrition_meals', JSON.stringify(all.filter(m => m.id !== mealId)));
       return newMeals;
     });
-
+    
     setTotals(prev => ({
       calories: prev.calories - (mealToDelete.calories || 0),
       protein: prev.protein - (mealToDelete.protein || 0),
       fat: prev.fat - (mealToDelete.fat || 0),
       carbs: prev.carbs - (mealToDelete.carbs || 0)
     }));
-
+    
     showToast(`🗑️ Удалено: ${mealToDelete.productName}`);
     sendVoiceReply(`Удалено ${mealToDelete.productName}`);
   }, [showToast, sendVoiceReply]);
@@ -244,38 +245,51 @@ function App() {
           </Toolbar>
         </AppBar>
 
-        <Container maxWidth="xl">
+        {/* ✅ ТВ-вёрстка: адаптивные отступы (px) и ширина (maxWidth="lg") */}
+        <Container maxWidth="lg" sx={{ px: { xs: 2, sm: 3, md: 4, lg: 6 } }}>
           <Tabs value={currentTab} onChange={(_, v) => setCurrentTab(v)} sx={{ mt: 2 }} variant="scrollable" scrollButtons="auto">
             <Tab label="📋 Дневник" />
             <Tab label="🍳 Рецепты" />
             <Tab label="⚙️ Профиль" />
           </Tabs>
 
-          {/* ✅ ПЕРЕДАЁМ handleDeleteFood вместо пустой функции */}
           {currentTab === 0 && <FoodDiary targets={targets} totals={totals} onAddFood={handleAddFood} onDeleteFood={handleDeleteFood} meals={meals} />}
           {currentTab === 1 && <RecipeFinder triggerSearch={recipeTrigger} />}
-          {currentTab === 2 && <Container maxWidth="sm" sx={{ mt: 4 }}><ProfileSetup onSave={handleSaveProfile} initialProfile={profile} /></Container>}
+          {currentTab === 2 && <ProfileSetup onSave={handleSaveProfile} initialProfile={profile} />}
         </Container>
 
+        {/* ✅ Тосты: адаптивный размер, шрифт и позиция для ТВ */}
         {toast && (
           <Box sx={{
-            position: 'fixed', top: '80px', left: '50%', transform: 'translateX(-50%)',
-            background: '#000', color: '#fff', padding: '12px 24px', borderRadius: '16px',
-            fontSize: '14px', fontWeight: 500, zIndex: 99999, boxShadow: 3, textAlign: 'center'
+            position: 'fixed',
+            top: { xs: '80px', md: '100px', lg: '140px' },
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: '#000000',
+            color: '#ffffff',
+            padding: { xs: '12px 24px', md: '16px 32px', lg: '20px 40px' },
+            borderRadius: '20px',
+            fontSize: { xs: '14px', md: '18px', lg: '24px' }, // Крупный шрифт для ТВ
+            fontWeight: 600,
+            zIndex: 999999,
+            boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
+            textAlign: 'center',
+            maxWidth: { xs: '90vw', md: '70vw', lg: '50vw' },
+            minWidth: '200px',
+            pointerEvents: 'none'
           }}>
             {toast}
           </Box>
         )}
 
-        {token && smartappId && (
-          <AssistantPanel
-            onCommand={handleAssistantCommand}
-            onBackendAction={handleBackendAction}
-            token={token}
-            smartappId={smartappId}
-            onReady={handleAssistantReady}
-          />
-        )}
+        {/* ✅ Ассистент: передаем пропсы, чтобы он мог инициализироваться */}
+        <AssistantPanel
+          onCommand={handleAssistantCommand}
+          onBackendAction={handleBackendAction}
+          token={token}
+          smartappId={smartappId}
+          onReady={handleAssistantReady}
+        />
       </Box>
     </ThemeProvider>
   );

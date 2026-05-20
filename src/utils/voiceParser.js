@@ -1,6 +1,25 @@
 import { foodDatabase } from './foodDatabase';
 import { calculateNutritionForAmount } from './nutritionCalculator';
 
+// ✅ Единая функция нормализации для голосовых команд
+const normalizeProductName = (name) => {
+  let s = name.toLowerCase().trim().replace(/^\d+\s*г\s*/i, '');
+  // Отсекаем окончания
+  s = s.replace(/(ов|ев|ей|ам|ами|ах|ях|у|ю|ы|и|а|я|о|е|ь|й|ие|ье|ые|ого|его|ому|ему)$/i, '');
+
+  // Маппинг основ на канонические названия
+  const map = {
+    'куриц': 'курица', 'творог': 'творог', 'творога': 'творог',
+    'гречк': 'гречка', 'греч': 'гречка', 'банан': 'банан', 'бананов': 'банан',
+    'овощ': 'овощи', 'фрукт': 'фрукты', 'яблок': 'яблоки', 'ябл': 'яблоки',
+    'помидор': 'помидоры', 'помид': 'помидоры', 'огурц': 'огурцы', 'огур': 'огурцы',
+    'картошк': 'картофель', 'картофел': 'картофель', 'морков': 'морковь',
+    'лук': 'лук', 'чеснок': 'чеснок', 'капуст': 'капуста', 'свёкл': 'свекла', 'свекл': 'свекла',
+    'яйц': 'яйцо', 'яиц': 'яйцо', 'рыб': 'рыба', 'мяс': 'мясо', 'хлеб': 'хлеб'
+  };
+  return map[s] || s;
+};
+
 export const parseNutritionCommand = (text, actions) => {
   const lower = text.toLowerCase().trim();
 
@@ -8,10 +27,13 @@ export const parseNutritionCommand = (text, actions) => {
   if (addMatch) {
     const [, amountRaw, productName] = addMatch;
     const amount = amountRaw ? parseInt(amountRaw) : 100;
+
+    const normalized = normalizeProductName(productName);
     const food = foodDatabase.find(f =>
-      f.name.toLowerCase().includes(productName.toLowerCase()) ||
-      productName.toLowerCase().includes(f.name.toLowerCase())
+      f.name.toLowerCase().includes(normalized) ||
+      normalized.includes(f.name.toLowerCase())
     );
+
     if (food) {
       const nutrition = calculateNutritionForAmount(food, amount);
       actions.addFood?.({
@@ -24,7 +46,7 @@ export const parseNutritionCommand = (text, actions) => {
       });
       return ""; // Backend handles TTS
     }
-    return `🔄 Ищу "${productName}" в базе...`;
+    return `❌ Продукт "${productName}" не найден`;
   }
 
   if (lower.includes('сколько съел') || lower.includes('калорий')) {
