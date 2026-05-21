@@ -9,9 +9,10 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
   const [selectedFood, setSelectedFood] = useState(null);
   const [weight, setWeight] = useState('100');
   const [isCustom, setIsCustom] = useState(false);
+  const [activeInput, setActiveInput] = useState(null); // Какое поле активно для ввода
   const containerRef = useRef(null);
 
-  // 🔒 ТВ-НАВИГАЦИЯ: исправленная логика фокуса
+  // 🔒 ТВ-НАВИГАЦИЯ
   const handleKeyDownCapture = useCallback((e) => {
     const focusable = Array.from(containerRef.current.querySelectorAll('input, button'))
       .filter(el => !el.disabled && el.offsetParent !== null);
@@ -38,33 +39,53 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
     else if (['ArrowUp', 'ArrowLeft'].includes(e.key)) {
       e.preventDefault();
       if (currentIdx === 0) {
+        // 🔥 ЯВНЫЙ ВЫХОД НА ВКЛАДКИ
         const firstTab = document.querySelector('button[role="tab"]');
-        if (firstTab) firstTab.focus();
-      } else {
+        if (firstTab) {
+          firstTab.focus();
+          return;
+        }
+      }
+      if (currentIdx > 0) {
         focusable[currentIdx - 1]?.focus();
       }
     }
-    // 4. ENTER на ПОИСКЕ -> умный переход (на кнопку "Свой продукт" или первый продукт)
+    // 4. ENTER на ПОИСКЕ -> умный переход
     else if ((e.key === 'Enter' || e.key === 'NumpadEnter') && document.activeElement.id === 'diary-search') {
       e.preventDefault();
-      // Ищем кнопку "Свой продукт" по data-атрибуту
-      const customBtn = containerRef.current.querySelector('[data-type="custom-add"]');
+      const customBtn = document.getElementById('custom-product-btn');
       if (customBtn && customBtn.offsetParent !== null) {
         customBtn.focus();
       } else {
-        // Если кнопки нет, идём на первый продукт в списке
         const firstFoodBtn = containerRef.current.querySelector('.food-list-btn');
         if (firstFoodBtn) firstFoodBtn.focus();
         else focusable[Math.min(currentIdx + 1, focusable.length - 1)]?.focus();
       }
     }
-    // 5. ENTER на ДРУГИХ ИНПУТАХ -> переход вниз
+    // 5. ENTER на ПОЛЕ ВЕСА -> активация для ввода или переход вниз
+    else if ((e.key === 'Enter' || e.key === 'NumpadEnter') && document.activeElement.id === 'diary-weight') {
+      e.preventDefault();
+      if (activeInput !== 'weight') {
+        // 🔥 Активируем поле для ввода (снимаем readOnly)
+        setActiveInput('weight');
+        // Возвращаем фокус на это же поле
+        setTimeout(() => {
+          const input = containerRef.current?.querySelector('#diary-weight input');
+          input?.focus();
+        }, 50);
+      } else {
+        // Уже активно -> переход на кнопку Добавить
+        const addBtn = containerRef.current.querySelector('#add-food-btn');
+        if (addBtn) addBtn.focus();
+      }
+    }
+    // 6. ENTER на ДРУГИХ ИНПУТАХ -> переход вниз
     else if ((e.key === 'Enter' || e.key === 'NumpadEnter') && isInput) {
       e.preventDefault();
       focusable[Math.min(currentIdx + 1, focusable.length - 1)]?.focus();
     }
-    // 6. ENTER на КНОПКАХ -> НЕ перехватываем, даём сработать нативно (клик)
-  }, []);
+    // 7. ENTER на КНОПКАХ -> НЕ перехватываем (нативный клик)
+  }, [activeInput]);
 
   // Автофокус на поиск
   useEffect(() => {
@@ -82,6 +103,8 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
     setSelectedFood(food);
     setIsCustom(custom);
     setSearch(custom ? food.name : food.name);
+    // Активируем поле веса при выборе продукта
+    setActiveInput('weight');
     setTimeout(() => containerRef.current?.querySelector('#diary-weight')?.focus(), 120);
   };
 
@@ -120,7 +143,13 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
     setIsCustom(false);
     setSearch('');
     setWeight('100');
+    setActiveInput(null); // Сбрасываем активное поле
     setTimeout(() => containerRef.current?.querySelector('#diary-search')?.focus(), 150);
+  };
+
+  // При потере фокуса полем -> деактивируем его (становится readOnly)
+  const handleInputBlur = () => {
+    setActiveInput(null);
   };
 
   const remaining = targets ? calculateRemaining(targets, totals) : {};
@@ -164,7 +193,7 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
 
       {/* === 3. ДОБАВЛЕНИЕ ПРОДУКТА === */}
       <Paper sx={{ p: 2, mb: 3 }}>
-        <Typography variant="h6" sx={{ mb: 2, fontSize: '1.2rem', fontWeight: 600 }}> Добавить продукт</Typography>
+        <Typography variant="h6" sx={{ mb: 2, fontSize: '1.2rem', fontWeight: 600 }}>📋 Добавить продукт</Typography>
 
         <TextField
           id="diary-search"
@@ -172,6 +201,7 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
           placeholder="Поиск продукта..."
           value={search}
           onChange={(e) => { setSearch(e.target.value); setSelectedFood(null); setIsCustom(false); }}
+          onBlur={handleInputBlur}
           inputProps={{
             style: { fontSize: 16, padding: '16px' },
             autoComplete: 'off',
@@ -207,10 +237,10 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
             </Button>
           ))}
 
-          {/* Кнопка "Свой продукт" (с data-атрибутом для точного поиска фокусом) */}
+          {/* Кнопка "Свой продукт" с явным ID */}
           {search.length > 2 && filteredFoods.length === 0 && (
             <Button
-              data-type="custom-add"
+              id="custom-product-btn"
               variant="outlined"
               color="secondary"
               onClick={() => handleSelectFood({ name: search }, true)}
@@ -232,10 +262,21 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
             pattern="[0-9]*"
             value={weight}
             onChange={(e) => setWeight(e.target.value.replace(/\D/g, ''))}
-            inputProps={{ style: { fontSize: 16, padding: '16px' }, autoComplete: 'off' }}
-            sx={{ flex: 1 }}
+            onBlur={handleInputBlur}
+            // 🔥 КЛЮЧЕВОЙ ФИКС: readOnly пока не активировано Enter'ом
+            inputProps={{
+              readOnly: activeInput !== 'weight',
+              style: { fontSize: 16, padding: '16px' },
+              autoComplete: 'off'
+            }}
+            sx={{
+              flex: 1,
+              // Визуально показываем что поле неактивно
+              opacity: activeInput === 'weight' ? 1 : 0.6
+            }}
           />
           <Button
+            id="add-food-btn"
             variant="contained"
             onClick={handleAdd}
             disabled={!selectedFood}
@@ -249,7 +290,7 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
 
       {/* === 4. СЪЕДЕННОЕ === */}
       <Paper sx={{ p: 2 }}>
-        <Typography variant="h6" sx={{ mb: 2, fontSize: '1.2rem', fontWeight: 600 }}>️ Сегодня съедено</Typography>
+        <Typography variant="h6" sx={{ mb: 2, fontSize: '1.2rem', fontWeight: 600 }}>🍽️ Сегодня съедено</Typography>
         {meals.length === 0 ? (
           <Typography color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>Пока ничего не добавлено</Typography>
         ) : (
