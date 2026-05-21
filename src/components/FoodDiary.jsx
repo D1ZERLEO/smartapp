@@ -11,13 +11,13 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
   const [isCustom, setIsCustom] = useState(false);
   const containerRef = useRef(null);
 
-  // 🔒 ТВ-НАВИГАЦИЯ: только перехват стрелок и Enter
+  // 🔒 ТВ-НАВИГАЦИЯ
   const handleKeyDownCapture = useCallback((e) => {
     const focusable = Array.from(containerRef.current.querySelectorAll('input, button'))
       .filter(el => !el.disabled && el.offsetParent !== null);
     const currentIdx = focusable.indexOf(document.activeElement);
 
-    // 1. Стрелки внутри ИНПУТОВ -> блокируем изменение значения, переводим фокус
+    // Стрелки внутри ИНПУТОВ -> блокируем изменение значения
     if (document.activeElement.tagName === 'INPUT' && ['ArrowUp', 'ArrowDown'].includes(e.key)) {
       e.preventDefault();
       const nextIdx = e.key === 'ArrowDown' ? Math.min(currentIdx + 1, focusable.length - 1) : Math.max(currentIdx - 1, 0);
@@ -25,17 +25,17 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
       return;
     }
 
-    // 2. ВНИЗ / ВПРАВО / ENTER -> следующий элемент
+    // ВНИЗ / ВПРАВО / ENTER -> следующий элемент
     if (['ArrowDown', 'ArrowRight', 'Enter', 'NumpadEnter'].includes(e.key)) {
       e.preventDefault();
       const next = Math.min(currentIdx + 1, focusable.length - 1);
       focusable[next]?.focus();
     }
-    // 3. ВВЕРХ / ВЛЕВО -> предыдущий или выход на вкладки
+    // ⬅️ ВВЕРХ / ВЛЕВО -> предыдущий или выход на вкладки
     else if (['ArrowUp', 'ArrowLeft'].includes(e.key)) {
       e.preventDefault();
       if (currentIdx === 0) {
-        // 🔥 ЯВНЫЙ ВЫХОД НА ВКЛАДКИ (MUI рендерит их с role="tab")
+        // ЯВНЫЙ ВЫХОД НА ВКЛАДКИ
         const firstTab = document.querySelector('button[role="tab"]');
         if (firstTab) firstTab.focus();
       } else {
@@ -44,7 +44,7 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
     }
   }, []);
 
-  // Автофокус на поиск при открытии вкладки
+  // Автофокус на поиск
   useEffect(() => {
     const timer = setTimeout(() => {
       containerRef.current?.querySelector('#diary-search')?.focus();
@@ -67,9 +67,14 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
     if (!selectedFood) return;
     const amount = parseInt(weight) || 100;
 
-    const nutrition = isCustom
-      ? { calories: 0, protein: 0, fat: 0, carbs: 0 }
-      : calculateNutritionForAmount(selectedFood, amount);
+    let nutrition;
+    if (isCustom) {
+      // Для своего продукта пытаемся найти похожий в базе или ставим 0
+      const similar = foodDatabase.find(f => f.name.toLowerCase().includes(selectedFood.name.toLowerCase()));
+      nutrition = similar ? calculateNutritionForAmount(similar, amount) : { calories: 0, protein: 0, fat: 0, carbs: 0 };
+    } else {
+      nutrition = calculateNutritionForAmount(selectedFood, amount);
+    }
 
     onAddFood({
       id: Date.now().toString(),
@@ -100,7 +105,7 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
       {/* === 1. ПРОГРЕСС === */}
       <Paper sx={{ p: 2, mb: 2, background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}> Прогресс за сегодня</Typography>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>📊 Прогресс за сегодня</Typography>
           <Typography variant="body2" sx={{ fontWeight: 700 }}>{totals.calories} / {targets?.calories || 2000} ккал</Typography>
         </Box>
         <LinearProgress
@@ -144,29 +149,33 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
           sx={{ mb: 2 }}
         />
 
-        {/* ✅ СПИСОК С ИСПРАВЛЕННОЙ ВЁРСТКОЙ (число всегда видно) */}
+        {/* ✅ СПИСОК С ПРАВИЛЬНЫМ ОТОБРАЖЕНИЕМ ККАЛ */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
-          {filteredFoods.map((food) => (
-            <Button
-              key={food.name}
-              variant={selectedFood?.name === food.name && !isCustom ? 'contained' : 'outlined'}
-              onClick={() => handleSelectFood(food, false)}
-              disableTouchRipple
-              sx={{
-                justifyContent: 'flex-start',
-                py: 1.5,
-                fontSize: '1rem',
-                borderRadius: 1,
-                textTransform: 'none',
-                border: selectedFood?.name === food.name && !isCustom ? '2px solid #4f46e5' : '1px solid #ccc'
-              }}
-            >
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
-                <Typography sx={{ fontWeight: 500 }}>{food.name}</Typography>
-                <Typography sx={{ fontSize: '0.85rem', opacity: 0.7, ml: 1 }}>{food.calories ?? 0} ккал/100г</Typography>
-              </Box>
-            </Button>
-          ))}
+          {filteredFoods.map((food) => {
+            // Проверяем все возможные названия поля калорий
+            const cals = food.calories ?? food.cal ?? food.energy ?? 0;
+            return (
+              <Button
+                key={food.name}
+                variant={selectedFood?.name === food.name && !isCustom ? 'contained' : 'outlined'}
+                onClick={() => handleSelectFood(food, false)}
+                disableTouchRipple
+                sx={{
+                  justifyContent: 'flex-start',
+                  py: 1.5,
+                  fontSize: '1rem',
+                  borderRadius: 1,
+                  textTransform: 'none',
+                  border: selectedFood?.name === food.name && !isCustom ? '2px solid #4f46e5' : '1px solid #ccc'
+                }}
+              >
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                  <Typography sx={{ fontWeight: 500 }}>{food.name}</Typography>
+                  <Typography sx={{ fontSize: '0.85rem', opacity: 0.7, ml: 1 }}>{cals} ккал/100г</Typography>
+                </Box>
+              </Button>
+            );
+          })}
 
           {/* Кнопка "Свой продукт" */}
           {search.length > 2 && filteredFoods.length === 0 && (
