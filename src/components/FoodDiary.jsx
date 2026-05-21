@@ -265,11 +265,11 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
           )}
         </Box>
 
-        {/* 🔥 ПОЛЕ ВЕСА: всегда фокусируемое, но ввод только при activeField */}
+        {/* 🔥 ПОЛЕ ВЕСА: всегдааа фокусируемое, но ввод только при activeField */}
         <Box sx={{ mb: isCustom ? 1 : 2 }}>
           <TextField
             id="diary-weight"
-            label={activeField === 'weight' ? 'Вес (г) — вводите..." : 'Вес (г) — нажмите OK для ввода'}
+            label={activeField === 'weight' ? 'Вес (г) — вводите...' : 'Вес (г) — нажмите OK для ввода'}
             type="text"
             inputMode="numeric"
             pattern="[0-9]*"
