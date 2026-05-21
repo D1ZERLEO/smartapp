@@ -70,7 +70,7 @@ function App() {
 
   const showToast = useCallback((msg) => {
     setToast(msg);
-    setTimeout(() => setToast(null), 4500); //  Чуть дольше для ТВ
+    setTimeout(() => setToast(null), 4500);
   }, []);
 
   const sendVoiceReply = useCallback((text) => {
@@ -82,7 +82,6 @@ function App() {
     }
   }, []);
 
-  // ✅ Функция для инициализации ассистента
   const handleAssistantReady = useCallback((assistant) => {
     assistantRef.current = assistant;
   }, []);
@@ -131,25 +130,24 @@ function App() {
     sendVoiceReply(`Добавлено ${meal.productName}, ${meal.calories} калорий.`);
   }, [showToast, sendVoiceReply]);
 
-  // ✅ Удаление еды
   const handleDeleteFood = useCallback((mealId) => {
     const mealToDelete = mealsRef.current.find(m => m.id === mealId);
     if (!mealToDelete) return;
-    
+
     setMeals(prev => {
       const newMeals = prev.filter(m => m.id !== mealId);
       const all = JSON.parse(localStorage.getItem('nutrition_meals') || '[]');
       localStorage.setItem('nutrition_meals', JSON.stringify(all.filter(m => m.id !== mealId)));
       return newMeals;
     });
-    
+
     setTotals(prev => ({
       calories: prev.calories - (mealToDelete.calories || 0),
       protein: prev.protein - (mealToDelete.protein || 0),
       fat: prev.fat - (mealToDelete.fat || 0),
       carbs: prev.carbs - (mealToDelete.carbs || 0)
     }));
-    
+
     showToast(`🗑️ Удалено: ${mealToDelete.productName}`);
     sendVoiceReply(`Удалено ${mealToDelete.productName}`);
   }, [showToast, sendVoiceReply]);
@@ -221,14 +219,28 @@ function App() {
     }
   }, [handleAddFood, showToast, sendVoiceReply]);
 
+  // ✅ ИСПРАВЛЕНО: передаём реальные функции вместо пустых заглушек
   const handleAssistantCommand = useCallback((text) => {
     return parseNutritionCommand(text, {
       totals: totalsRef.current,
       remaining: targetsRef.current ? calculateRemaining(targetsRef.current, totalsRef.current) : {},
       recommendations: targetsRef.current ? getRecommendations(calculateRemaining(targetsRef.current, totalsRef.current)) : [],
-      addFood: () => {}, deleteLastFood: () => {}, searchRecipes: () => {}
+
+      // ✅ Реальные вызовы действий:
+      addFood: (meal) => handleAddFood(meal),
+      deleteLastFood: () => {
+        const current = mealsRef.current;
+        if (current.length > 0) {
+          const last = current[current.length - 1];
+          handleDeleteFood(last.id);
+        }
+      },
+      searchRecipes: (ingredients) => {
+        setCurrentTab(1);
+        setRecipeTrigger(ingredients);
+      }
     });
-  }, []);
+  }, [handleAddFood, handleDeleteFood]); // ✅ Зависимости для useCallback
 
   if (!profile || !targets) return <ProfileSetup onSave={handleSaveProfile} />;
 
@@ -245,7 +257,6 @@ function App() {
           </Toolbar>
         </AppBar>
 
-        {/* ✅ ТВ-вёрстка: адаптивные отступы (px) и ширина (maxWidth="lg") */}
         <Container maxWidth="lg" sx={{ px: { xs: 2, sm: 3, md: 4, lg: 6 } }}>
           <Tabs value={currentTab} onChange={(_, v) => setCurrentTab(v)} sx={{ mt: 2 }} variant="scrollable" scrollButtons="auto">
             <Tab label="📋 Дневник" />
@@ -258,7 +269,6 @@ function App() {
           {currentTab === 2 && <ProfileSetup onSave={handleSaveProfile} initialProfile={profile} />}
         </Container>
 
-        {/* ✅ Тосты: адаптивный размер, шрифт и позиция для ТВ */}
         {toast && (
           <Box sx={{
             position: 'fixed',
@@ -269,7 +279,7 @@ function App() {
             color: '#ffffff',
             padding: { xs: '12px 24px', md: '16px 32px', lg: '20px 40px' },
             borderRadius: '20px',
-            fontSize: { xs: '14px', md: '18px', lg: '24px' }, // Крупный шрифт для ТВ
+            fontSize: { xs: '14px', md: '18px', lg: '24px' },
             fontWeight: 600,
             zIndex: 999999,
             boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
@@ -282,7 +292,6 @@ function App() {
           </Box>
         )}
 
-        {/* ✅ Ассистент: передаем пропсы, чтобы он мог инициализироваться */}
         <AssistantPanel
           onCommand={handleAssistantCommand}
           onBackendAction={handleBackendAction}

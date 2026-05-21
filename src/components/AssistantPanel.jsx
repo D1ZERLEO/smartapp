@@ -1,4 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+// src/components/AssistantPanel.jsx
+import { useEffect, useRef } from 'react';
+import { createAssistant, createSmartappDebugger } from '@salutejs/client';
 
 export default function AssistantPanel({ onCommand, onBackendAction, token: tokenProp, smartappId: smartappIdProp, onReady }) {
   const assistantRef = useRef(null);
@@ -9,23 +11,27 @@ export default function AssistantPanel({ onCommand, onBackendAction, token: toke
   useEffect(() => { onCommandRef.current = onCommand; }, [onCommand]);
 
   useEffect(() => {
-    // ✅ НЕ создаём ассистент локально — только на Canvas
+    // ✅ Создаём мок window.appInitialData для локалки
     if (!window.appInitialData) {
-      console.log('ℹ️ Ассистент доступен только в SmartApp Studio');
-      return;
+      window.appInitialData = {
+        token: tokenProp || process.env.REACT_APP_TOKEN,
+        projectId: smartappIdProp || process.env.REACT_APP_SMARTAPP,
+        applicationId: 'local-mock-app-id',
+        surface: 'COMPANION'
+      };
     }
 
-    const token = window.appInitialData.token || tokenProp;
-    const smartappId = window.appInitialData.projectId || smartappIdProp;
+    const initialData = window.appInitialData;
+    const appToken = tokenProp || initialData.token;
+    const appSmartAppId = smartappIdProp || initialData.projectId;
 
-    if (!token) {
+    if (!appToken) {
       console.warn('⚠️ Нет токена');
       return;
     }
 
-    // Динамический импорт только когда есть appInitialData
-    import('@salutejs/client').then(({ createAssistant }) => {
-      const getState = () => {
+    const getState = () => {
+      try {
         const profile = JSON.parse(localStorage.getItem('nutrition_profile') || 'null');
         const targets = JSON.parse(localStorage.getItem('nutrition_targets') || 'null');
         const totals = JSON.parse(localStorage.getItem('nutrition_totals') || '{"calories":0,"protein":0,"fat":0,"carbs":0}');
@@ -34,50 +40,62 @@ export default function AssistantPanel({ onCommand, onBackendAction, token: toke
         const items = allMeals.filter(m => m.date === today).map((m, i) => ({
           number: i + 1, id: m.id, title: `${m.productName} ${m.amount}г`
         }));
-        return {
-          profile, targets, totals,
-          item_selector: { items, ignored_words: ['добавь','съел','запиши','удали','сколько','что съесть','помощь','найди','рецепт','осталось'] }
-        };
-      };
+        return { profile, targets, totals, item_selector: { items, ignored_words: ['добавь','съел','запиши','удали','сколько','что съесть','помощь','найди','рецепт','осталось'] } };
+      } catch (e) { return {}; }
+    };
 
-      const getRecoveryState = () => ({ profile: JSON.parse(localStorage.getItem('nutrition_profile') || 'null') });
+    const getRecoveryState = () => {
+      try { return { profile: JSON.parse(localStorage.getItem('nutrition_profile') || 'null') }; }
+      catch (e) { return {}; }
+    };
 
-      try {
-        const assistant = createAssistant({
-          token,
-          smartAppBrain: { smartappId },
-          getState,
-          getRecoveryState
-        });
+    try {
+      // ✅ Используем createSmartappDebugger для локалки (зелёная панель)
+      const isDev = process.env.NODE_ENV === 'development';
 
-        assistant.on('data', (event) => {
-          if (event && event.type === 'smart_app_data' && event.action) {
-            onBackendActionRef.current?.(event.action);
+      const assistant = isDev
+        ? createSmartappDebugger({
+            token: appToken,
+            smartAppBrain: { smartappId: appSmartAppId },
+            initPhrase: 'запусти дневник питания',
+            getState,
+            getRecoveryState,
+            nativePanel: { defaultText: 'Скажите или напишите команду', screenshotMode: false },
+            surface: 'COMPANION',
+            settings: { disableTts: true } // 🔥 Отключаем TTS, чтобы не было ошибки applicationId
+          })
+        : createAssistant({
+            token: appToken,
+            smartAppBrain: { smartappId: appSmartAppId },
+            getState,
+            getRecoveryState
+          });
+
+      assistant.on('data', (event) => {
+        if (event?.type !== 'smart_app_data') return;
+        if (event.action) onBackendActionRef.current?.(event.action);
+        if (event.smart_app_data?.text) {
+          const response = onCommandRef.current?.(event.smart_app_data.text);
+          if (response && response.trim() !== '') {
+            assistant.sendData({
+              type: 'smart_app_data',
+              smart_app_data: { text: response, pronounceText: response }
+            });
           }
-        });
+        }
+      });
 
-        assistant.on('start', () => {
-          console.log('✅ Ассистент запущен');
-        });
+      assistant.on('start', () => console.log('✅ Ассистент запущен (зелёная панель)'));
+      assistant.on('error', (err) => console.error('❌ Ошибка:', err));
 
-        assistant.on('error', (err) => {
-          console.error('💥 Ошибка:', err);
-        });
+      assistantRef.current = assistant;
+      onReady?.(assistant);
+      assistant.start?.();
 
-        assistantRef.current = assistant;
-        if (onReady) onReady(assistant);
-        if (assistant.start) assistant.start();
-
-        return () => {
-          if (assistant.close) assistant.close();
-          assistantRef.current = null;
-        };
-      } catch (err) {
-        console.error('🔥 Ошибка инициализации:', err);
-      }
-    }).catch(err => {
-      console.error('Ошибка загрузки SDK:', err);
-    });
+      return () => { assistant.close?.(); assistantRef.current = null; };
+    } catch (err) {
+      console.error('🔥 Ошибка инициализации:', err);
+    }
   }, [tokenProp, smartappIdProp, onReady]);
 
   return null;

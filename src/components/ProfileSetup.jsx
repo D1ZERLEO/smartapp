@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   Container,
   Paper,
@@ -9,7 +9,8 @@ import {
   Select,
   MenuItem,
   Typography,
-  Alert
+  Alert,
+  Box
 } from '@mui/material';
 
 const Gender = { Male: 'male', Female: 'female' };
@@ -36,7 +37,6 @@ export default function ProfileSetup({ onSave, initialProfile }) {
     activityLevel: ActivityLevel.Moderate, goal: Goal.Maintain
   });
   const [error, setError] = useState('');
-  const ageInputRef = useRef(null);
 
   const validate = () => {
     if (profile.age < 12 || profile.age > 100) { setError('Возраст: 12–100'); return false; }
@@ -49,37 +49,49 @@ export default function ProfileSetup({ onSave, initialProfile }) {
   const handleSave = () => { if (validate()) onSave(profile); };
 
   return (
-    <Container maxWidth="sm" sx={{ mt: 4 }}>
-      <Paper sx={{ p: 3 }}>
-        <Typography variant="h5" gutterBottom>Настройка профиля</Typography>
+    <Container maxWidth="sm" sx={{ mt: 4, mb: 8 }}>
+      <Paper sx={{ p: { xs: 2, sm: 3 }, mb: 4 }}>
+        <Typography variant="h5" gutterBottom tabIndex={0}>Настройка профиля</Typography>
+
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-        <FormControl fullWidth sx={{ mb: 2 }}>
-          <InputLabel>Пол</InputLabel>
+        {/* Пол */}
+        <FormControl fullWidth sx={{ mb: 2 }} variant="outlined">
+          <InputLabel id="gender-label">Пол</InputLabel>
           <Select
+            labelId="gender-label"
             value={profile.gender}
             label="Пол"
             onChange={(e) => setProfile({ ...profile, gender: e.target.value })}
-            MenuProps={{ disableScrollLock: true }}
-            onClose={() => ageInputRef.current?.focus()} // ✅ Фокус на возраст после выбора
+            MenuProps={{
+              disableScrollLock: true,
+              anchorOrigin: { vertical: 'bottom', horizontal: 'left' },
+              transformOrigin: { vertical: 'top', horizontal: 'left' }
+            }}
+            sx={{ '& .MuiSelect-select': { minHeight: 48, display: 'flex', alignItems: 'center' } }}
           >
             <MenuItem value={Gender.Male}>Мужской</MenuItem>
             <MenuItem value={Gender.Female}>Женский</MenuItem>
           </Select>
         </FormControl>
 
+        {/* Возраст */}
         <TextField
-          inputRef={ageInputRef}
-          autoFocus
           fullWidth
-          label="Возраст"
+          label="Возраст (лет)"
           type="number"
           inputMode="numeric"
           value={profile.age}
           onChange={(e) => setProfile({ ...profile, age: Number(e.target.value) })}
           sx={{ mb: 2 }}
+          inputProps={{
+            min: 12,
+            max: 100,
+            style: { minHeight: 48, fontSize: '1.1rem' }
+          }}
         />
 
+        {/* Рост */}
         <TextField
           fullWidth
           label="Рост (см)"
@@ -88,8 +100,14 @@ export default function ProfileSetup({ onSave, initialProfile }) {
           value={profile.height}
           onChange={(e) => setProfile({ ...profile, height: Number(e.target.value) })}
           sx={{ mb: 2 }}
+          inputProps={{
+            min: 120,
+            max: 220,
+            style: { minHeight: 48, fontSize: '1.1rem' }
+          }}
         />
 
+        {/* Вес */}
         <TextField
           fullWidth
           label="Вес (кг)"
@@ -98,15 +116,28 @@ export default function ProfileSetup({ onSave, initialProfile }) {
           value={profile.weight}
           onChange={(e) => setProfile({ ...profile, weight: Number(e.target.value) })}
           sx={{ mb: 2 }}
+          inputProps={{
+            min: 30,
+            max: 200,
+            style: { minHeight: 48, fontSize: '1.1rem' }
+          }}
         />
 
-        <FormControl fullWidth sx={{ mb: 2 }}>
-          <InputLabel>Уровень активности</InputLabel>
+        {/* Уровень активности */}
+        <FormControl fullWidth sx={{ mb: 2 }} variant="outlined">
+          <InputLabel id="activity-label">Уровень активности</InputLabel>
           <Select
+            labelId="activity-label"
             value={profile.activityLevel}
             label="Уровень активности"
             onChange={(e) => setProfile({ ...profile, activityLevel: Number(e.target.value) })}
-            MenuProps={{ disableScrollLock: true }}
+            MenuProps={{
+              disableScrollLock: true,
+              anchorOrigin: { vertical: 'bottom', horizontal: 'left' },
+              transformOrigin: { vertical: 'top', horizontal: 'left' },
+              sx: { maxHeight: 300 }
+            }}
+            sx={{ '& .MuiSelect-select': { minHeight: 48, display: 'flex', alignItems: 'center' } }}
           >
             {Object.entries(activityLabels).map(([value, label]) => (
               <MenuItem key={value} value={Number(value)}>{label}</MenuItem>
@@ -114,13 +145,20 @@ export default function ProfileSetup({ onSave, initialProfile }) {
           </Select>
         </FormControl>
 
-        <FormControl fullWidth sx={{ mb: 3 }}>
-          <InputLabel>Цель</InputLabel>
+        {/* Цель */}
+        <FormControl fullWidth sx={{ mb: 3 }} variant="outlined">
+          <InputLabel id="goal-label">Цель</InputLabel>
           <Select
+            labelId="goal-label"
             value={profile.goal}
             label="Цель"
             onChange={(e) => setProfile({ ...profile, goal: e.target.value })}
-            MenuProps={{ disableScrollLock: true }}
+            MenuProps={{
+              disableScrollLock: true,
+              anchorOrigin: { vertical: 'bottom', horizontal: 'left' },
+              transformOrigin: { vertical: 'top', horizontal: 'left' }
+            }}
+            sx={{ '& .MuiSelect-select': { minHeight: 48, display: 'flex', alignItems: 'center' } }}
           >
             {Object.entries(goalLabels).map(([value, label]) => (
               <MenuItem key={value} value={value}>{label}</MenuItem>
@@ -128,9 +166,31 @@ export default function ProfileSetup({ onSave, initialProfile }) {
           </Select>
         </FormControl>
 
-        <Button fullWidth variant="contained" size="large" onClick={handleSave}>
-          Сохранить и рассчитать КБЖУ
-        </Button>
+        {/* Кнопка сохранения - большая и заметная */}
+        <Box sx={{ mt: 3, mb: 2 }}>
+          <Button
+            fullWidth
+            variant="contained"
+            size="large"
+            onClick={handleSave}
+            tabIndex={0}
+            sx={{
+              py: 2,
+              fontSize: '1.1rem',
+              fontWeight: 600,
+              '&:focus': {
+                outline: '3px solid #4f46e5',
+                outlineOffset: 2
+              }
+            }}
+          >
+            ✅ Сохранить и рассчитать КБЖУ
+          </Button>
+        </Box>
+
+        <Typography variant="body2" color="textSecondary" align="center">
+          💡 Используйте стрелки на пульте для навигации
+        </Typography>
       </Paper>
     </Container>
   );
