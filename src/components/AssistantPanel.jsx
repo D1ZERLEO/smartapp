@@ -1,95 +1,71 @@
-import { useEffect, useRef } from 'react';
-import { createSmartappDebugger } from '@salutejs/client';
+import { useEffect } from 'react';
 
 export default function AssistantPanel({
-  onCommand,
-  onBackendAction,
-  onReady,
+  onCommand
 }) {
-  const assistantRef = useRef(null);
 
   useEffect(() => {
-    let assistant;
 
-    try {
-      assistant = createSmartappDebugger({
-        token: process.env.REACT_APP_TOKEN,
+    const handleKey = async (e) => {
 
-        smartAppBrain: {
-          smartappId: process.env.REACT_APP_SMARTAPP,
-        },
+      if (e.key !== 'Enter') return;
 
-        initPhrase: 'запусти приложение',
+      const text = e.target.value?.trim();
 
-        nativePanel: {
-          defaultText: 'Введите команду',
-        },
+      if (!text) return;
 
-        settings: {
-          disableTts: true,
-        },
-      });
+      try {
 
-      assistant.on('data', async (event) => {
-        try {
-          console.log('ASSISTANT EVENT:', event);
+        const result = await onCommand(text);
 
-          // Canvas actions
-          if (event.action) {
-            onBackendAction?.(event.action);
-            return;
-          }
+        console.log('ASSISTANT:', result);
 
-          // Local text commands
-          const text =
-            event?.smart_app_data?.text ||
-            event?.payload?.text ||
-            '';
+        alert(result);
 
-          if (!text) return;
+      } catch (err) {
 
-          const response = await onCommand?.(text);
+        console.error(err);
 
-          if (!response) return;
+        alert('Ошибка команды');
 
-          assistant.sendData({
-            action: {
-              action_id: 'assistant_reply',
-              parameters: {
-                text: response,
-              },
-            },
-          });
+      }
 
-        } catch (err) {
-          console.error('DATA ERROR:', err);
-        }
-      });
+      e.target.value = '';
+    };
 
-      assistant.on('start', () => {
-        console.log('ASSISTANT STARTED');
-      });
+    // создаём локальную панель
+    const input = document.createElement('input');
 
-      assistant.on('error', (err) => {
-        console.error('SDK ERROR:', err);
-      });
+    input.placeholder = 'Введите команду...';
 
-      assistantRef.current = assistant;
+    input.style.position = 'fixed';
+    input.style.bottom = '20px';
+    input.style.left = '50%';
+    input.style.transform = 'translateX(-50%)';
+    input.style.width = '320px';
+    input.style.padding = '16px';
+    input.style.borderRadius = '16px';
+    input.style.border = 'none';
+    input.style.background = '#19c37d';
+    input.style.color = '#fff';
+    input.style.fontSize = '16px';
+    input.style.zIndex = '999999';
 
-      onReady?.(assistant);
+    input.addEventListener('keydown', handleKey);
 
-      assistant.start?.();
-
-    } catch (err) {
-      console.error('INIT ERROR:', err);
-    }
+    document.body.appendChild(input);
 
     return () => {
-      try {
-        assistant?.close?.();
-      } catch {}
+
+      input.removeEventListener(
+        'keydown',
+        handleKey
+      );
+
+      document.body.removeChild(input);
     };
-  }, [onCommand, onBackendAction, onReady]);
+
+  }, [onCommand]);
 
   return null;
 }

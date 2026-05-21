@@ -1,12 +1,13 @@
 {
   "files": {
-    "main.js": "/smartapp/static/js/main.254fc128.js",
-    "static/js/340.21c3e7dd.chunk.js": "/smartapp/static/js/340.21c3e7dd.chunk.js",
+    "main.css": "/smartapp/static/css/main.59b08118.css",
+    "main.js": "/smartapp/static/js/main.4dc0547e.js",
     "index.html": "/smartapp/index.html",
-    "main.254fc128.js.map": "/smartapp/static/js/main.254fc128.js.map",
-    "340.21c3e7dd.chunk.js.map": "/smartapp/static/js/340.21c3e7dd.chunk.js.map"
+    "main.59b08118.css.map": "/smartapp/static/css/main.59b08118.css.map",
+    "main.4dc0547e.js.map": "/smartapp/static/js/main.4dc0547e.js.map"
   },
   "entrypoints": [
-    "static/js/main.254fc128.js"
+    "static/css/main.59b08118.css",
+    "static/js/main.4dc0547e.js"
   ]
 }
