@@ -70,7 +70,7 @@ function App() {
 
   const showToast = useCallback((msg) => {
     setToast(msg);
-    setTimeout(() => setToast(null), 4500);
+    setTimeout(() => setToast(null), 3500);
   }, []);
 
   const sendVoiceReply = useCallback((text) => {
@@ -219,28 +219,17 @@ function App() {
     }
   }, [handleAddFood, showToast, sendVoiceReply]);
 
-  // ✅ ИСПРАВЛЕНО: передаём реальные функции вместо пустых заглушек
+  // ✅ ВОЗВРАЩАЕМ ПУСТЫЕ ФУНКЦИИ (как в старой рабочей версии)
   const handleAssistantCommand = useCallback((text) => {
     return parseNutritionCommand(text, {
       totals: totalsRef.current,
       remaining: targetsRef.current ? calculateRemaining(targetsRef.current, totalsRef.current) : {},
       recommendations: targetsRef.current ? getRecommendations(calculateRemaining(targetsRef.current, totalsRef.current)) : [],
-
-      // ✅ Реальные вызовы действий:
-      addFood: (meal) => handleAddFood(meal),
-      deleteLastFood: () => {
-        const current = mealsRef.current;
-        if (current.length > 0) {
-          const last = current[current.length - 1];
-          handleDeleteFood(last.id);
-        }
-      },
-      searchRecipes: (ingredients) => {
-        setCurrentTab(1);
-        setRecipeTrigger(ingredients);
-      }
+      addFood: () => {},
+      deleteLastFood: () => {},
+      searchRecipes: () => {}
     });
-  }, [handleAddFood, handleDeleteFood]); // ✅ Зависимости для useCallback
+  }, []);
 
   if (!profile || !targets) return <ProfileSetup onSave={handleSaveProfile} />;
 
@@ -257,7 +246,7 @@ function App() {
           </Toolbar>
         </AppBar>
 
-        <Container maxWidth="lg" sx={{ px: { xs: 2, sm: 3, md: 4, lg: 6 } }}>
+        <Container maxWidth="xl">
           <Tabs value={currentTab} onChange={(_, v) => setCurrentTab(v)} sx={{ mt: 2 }} variant="scrollable" scrollButtons="auto">
             <Tab label="📋 Дневник" />
             <Tab label="🍳 Рецепты" />
@@ -266,39 +255,29 @@ function App() {
 
           {currentTab === 0 && <FoodDiary targets={targets} totals={totals} onAddFood={handleAddFood} onDeleteFood={handleDeleteFood} meals={meals} />}
           {currentTab === 1 && <RecipeFinder triggerSearch={recipeTrigger} />}
-          {currentTab === 2 && <ProfileSetup onSave={handleSaveProfile} initialProfile={profile} />}
+          {currentTab === 2 && <Container maxWidth="sm"><ProfileSetup onSave={handleSaveProfile} initialProfile={profile} /></Container>}
         </Container>
 
         {toast && (
           <Box sx={{
-            position: 'fixed',
-            top: { xs: '80px', md: '100px', lg: '140px' },
-            left: '50%',
-            transform: 'translateX(-50%)',
-            background: '#000000',
-            color: '#ffffff',
-            padding: { xs: '12px 24px', md: '16px 32px', lg: '20px 40px' },
-            borderRadius: '20px',
-            fontSize: { xs: '14px', md: '18px', lg: '24px' },
-            fontWeight: 600,
-            zIndex: 999999,
-            boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
-            textAlign: 'center',
-            maxWidth: { xs: '90vw', md: '70vw', lg: '50vw' },
-            minWidth: '200px',
-            pointerEvents: 'none'
+            position: 'fixed', top: '80px', left: '50%', transform: 'translateX(-50%)',
+            background: '#000', color: '#fff', padding: '12px 24px', borderRadius: '16px',
+            fontSize: '14px', fontWeight: 500, zIndex: 99999, boxShadow: 3, textAlign: 'center'
           }}>
             {toast}
           </Box>
         )}
 
-        <AssistantPanel
-          onCommand={handleAssistantCommand}
-          onBackendAction={handleBackendAction}
-          token={token}
-          smartappId={smartappId}
-          onReady={handleAssistantReady}
-        />
+        {/* ✅ УСЛОВНЫЙ РЕНДЕРИНГ (как в старой версии) */}
+        {token && smartappId && (
+          <AssistantPanel
+            onCommand={handleAssistantCommand}
+            onBackendAction={handleBackendAction}
+            token={token}
+            smartappId={smartappId}
+            onReady={handleAssistantReady}
+          />
+        )}
       </Box>
     </ThemeProvider>
   );

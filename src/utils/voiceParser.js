@@ -43,17 +43,18 @@ export const parseNutritionCommand = (text, actions) => {
             date: new Date().toISOString().split('T')[0],
             timestamp: Date.now()
           });
-          return "✅ Добавлено"; // 🔥 Явный ответ вместо ""
+          // 🔥 ВОЗВРАЩАЕМ ТЕКСТ ДЛЯ ПОЛЬЗОВАТЕЛЯ (не пустую строку!)
+          return `✅ Добавлено ${food.name} ${amount}г`;
         } catch (e) {
           console.error('Ошибка при добавлении:', e);
           return "❌ Не удалось добавить продукт";
         }
       }
-      return `❌ Продукт "${productName}" не найден`;
+      return `❌ Продукт "${productName}" не найден. Попробуй: курица, гречка, банан`;
     }
 
     // 2. ПРОГРЕСС
-    if (lower.includes('сколько съел') || lower.includes('калорий')) {
+    if (lower.includes('сколько съел') || lower.includes('калорий') || lower.includes('прогресс')) {
       const t = actions.totals || {};
       return `📊 Сегодня: ${t.calories || 0} ккал | Б:${t.protein || 0}г Ж:${t.fat || 0}г У:${t.carbs || 0}г`;
     }
@@ -70,7 +71,7 @@ export const parseNutritionCommand = (text, actions) => {
       if (recs.length) {
         return `💡 Рекомендую: ${recs.map(r => r.items.join(', ')).join('; ')}`;
       }
-      return '✨ Всё в норме!';
+      return '✨ Всё в норме! Можете позволить себе небольшой перекус';
     }
 
     // 5. РЕЦЕПТЫ
@@ -81,7 +82,7 @@ export const parseNutritionCommand = (text, actions) => {
         const stemRu = (w) => w.toLowerCase().replace(/(ый|ий|ая|яя|ее|ие|ые|ое|ую|юю|ым|им|ого|его|у|а|е|о|ы|и|я|ю|ем|ом|ам|ям|ми)$/i, '');
         const ingredients = raw.replace(/[.,!?;:]/g, '').split(/[\s,]+/).map(stemRu).filter(w => w.length > 2 && !['и','с','из','на','для'].includes(w));
         actions.searchRecipes?.(ingredients);
-        return "🔍 Ищу рецепты..."; // 🔥 Явный ответ
+        return ingredients.length ? `🔍 Ищу рецепты с: ${ingredients.join(', ')}` : "🔍 Открываю все рецепты";
       } catch (e) {
         console.error('Ошибка поиска рецептов:', e);
         return "❌ Не удалось найти рецепты";
@@ -89,26 +90,26 @@ export const parseNutritionCommand = (text, actions) => {
     }
 
     // 6. УДАЛИТЬ
-    if (lower.includes('удали') || lower.includes('убери')) {
+    if (lower.includes('удали') || lower.includes('убери') || lower.includes('вычеркни')) {
       try {
         actions.deleteLastFood?.();
-        return "🗑️ Удалено"; // 🔥 Явный ответ
+        return "🗑️ Последняя запись удалена";
       } catch (e) {
         console.error('Ошибка удаления:', e);
-        return "❌ Не удалось удалить";
+        return "❌ Не удалось удалить запись";
       }
     }
 
     // 7. ПОМОЩЬ
-    if (lower.includes('помощь') || lower.includes('что умеешь')) {
+    if (lower.includes('помощь') || lower.includes('что умеешь') || lower.includes('команды')) {
       return '🎤 Команды: «добавь 100г курицы», «сколько съел?», «что съесть?», «рецепт из яиц», «удали последнее»';
     }
 
-    return '❓ Команда не распознана. Скажите «помощь» для списка команд';
+    // 8. НЕ РАСПОЗНАНО
+    return '❓ Не поняла. Скажите «помощь» для списка команд';
 
   } catch (e) {
-    // 🔥 ГЛОБАЛЬНЫЙ CATCH — чтобы бот никогда не молчал
     console.error('🔥 Критическая ошибка в парсере:', e);
-    return "❌ Произошла ошибка. Попробуйте ещё раз";
+    return "❌ Произошла ошибка. Попробуйте ещё раз или скажите «помощь»";
   }
 };
