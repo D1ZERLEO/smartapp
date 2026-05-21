@@ -9,16 +9,16 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
   const [selectedFood, setSelectedFood] = useState(null);
   const [weight, setWeight] = useState('100');
   const [isCustom, setIsCustom] = useState(false);
-  const [activeInput, setActiveInput] = useState(null); // Какое поле активно для ввода
+  const [customCalories, setCustomCalories] = useState(''); // Калории для своего продукта
+  const [editingField, setEditingField] = useState(null); // Какое поле сейчас редактируем ('weight' | 'calories' | null)
   const containerRef = useRef(null);
 
   // 🔒 ТВ-НАВИГАЦИЯ
   const handleKeyDownCapture = useCallback((e) => {
-    const focusable = Array.from(containerRef.current.querySelectorAll('input, button'))
-      .filter(el => !el.disabled && el.offsetParent !== null);
+    const focusable = Array.from(containerRef.current.querySelectorAll('input:not([disabled]), button'))
+      .filter(el => el.offsetParent !== null);
     const currentIdx = focusable.indexOf(document.activeElement);
-    const isInput = document.activeElement.tagName === 'INPUT';
-    const isButton = document.activeElement.tagName === 'BUTTON';
+    const isInput = document.activeElement.tagName === 'INPUT' && !document.activeElement.disabled;
 
     // 1. Стрелки внутри ИНПУТОВ -> блокируем изменение значения, переводим фокус
     if (isInput && ['ArrowUp', 'ArrowDown'].includes(e.key)) {
@@ -35,14 +35,14 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
       e.preventDefault();
       focusable[Math.min(currentIdx + 1, focusable.length - 1)]?.focus();
     }
-    // 3. ️ ВВЕРХ / ⬅️ ВЛЕВО -> предыдущий или выход на вкладки
+    // 3. ⬆️ ВВЕРХ / ⬅️ ВЛЕВО -> предыдущий или выход на вкладки
     else if (['ArrowUp', 'ArrowLeft'].includes(e.key)) {
       e.preventDefault();
       if (currentIdx === 0) {
-        // 🔥 ЯВНЫЙ ВЫХОД НА ВКЛАДКИ
-        const firstTab = document.querySelector('button[role="tab"]');
-        if (firstTab) {
-          firstTab.focus();
+        // 🔥 ИЩЕМ ВКЛАДКИ ПО tabIndex=0 (они в App.jsx)
+        const tabs = Array.from(document.querySelectorAll('[tabindex="0"]'));
+        if (tabs.length > 0) {
+          tabs[0].focus();
           return;
         }
       }
@@ -62,30 +62,34 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
         else focusable[Math.min(currentIdx + 1, focusable.length - 1)]?.focus();
       }
     }
-    // 5. ENTER на ПОЛЕ ВЕСА -> активация для ввода или переход вниз
+    // 5. ENTER на ПОЛЕ ВЕСА -> активация для ввода
     else if ((e.key === 'Enter' || e.key === 'NumpadEnter') && document.activeElement.id === 'diary-weight') {
       e.preventDefault();
-      if (activeInput !== 'weight') {
-        // 🔥 Активируем поле для ввода (снимаем readOnly)
-        setActiveInput('weight');
-        // Возвращаем фокус на это же поле
+      if (editingField !== 'weight') {
+        setEditingField('weight');
         setTimeout(() => {
           const input = containerRef.current?.querySelector('#diary-weight input');
           input?.focus();
         }, 50);
       } else {
-        // Уже активно -> переход на кнопку Добавить
-        const addBtn = containerRef.current.querySelector('#add-food-btn');
-        if (addBtn) addBtn.focus();
+        // Уже редактируем -> переход на кнопку Добавить или на поле калорий
+        if (isCustom) {
+          const calInput = containerRef.current.querySelector('#custom-calories input');
+          if (calInput) calInput.focus();
+        } else {
+          const addBtn = containerRef.current.querySelector('#add-food-btn');
+          if (addBtn) addBtn.focus();
+        }
       }
     }
-    // 6. ENTER на ДРУГИХ ИНПУТАХ -> переход вниз
-    else if ((e.key === 'Enter' || e.key === 'NumpadEnter') && isInput) {
+    // 6. ENTER на ПОЛЕ КАЛОРИЙ (для своего продукта)
+    else if ((e.key === 'Enter' || e.key === 'NumpadEnter') && document.activeElement.id === 'custom-calories') {
       e.preventDefault();
-      focusable[Math.min(currentIdx + 1, focusable.length - 1)]?.focus();
+      const addBtn = containerRef.current.querySelector('#add-food-btn');
+      if (addBtn) addBtn.focus();
     }
     // 7. ENTER на КНОПКАХ -> НЕ перехватываем (нативный клик)
-  }, [activeInput]);
+  }, [editingField, isCustom]);
 
   // Автофокус на поиск
   useEffect(() => {
@@ -103,8 +107,12 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
     setSelectedFood(food);
     setIsCustom(custom);
     setSearch(custom ? food.name : food.name);
-    // Активируем поле веса при выборе продукта
-    setActiveInput('weight');
+    if (custom) {
+      setCustomCalories(''); // Сбрасываем калории для нового продукта
+      setEditingField('weight'); // Сразу активируем вес
+    } else {
+      setEditingField('weight');
+    }
     setTimeout(() => containerRef.current?.querySelector('#diary-weight')?.focus(), 120);
   };
 
@@ -112,21 +120,24 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
     if (!selectedFood) return;
     const amount = parseInt(weight) || 100;
 
-    const normalizedFood = {
-      ...selectedFood,
-      calories: selectedFood.caloriesPer100g || selectedFood.calories || 0,
-      protein: selectedFood.proteinPer100g || selectedFood.protein || 0,
-      fat: selectedFood.fatPer100g || selectedFood.fat || 0,
-      carbs: selectedFood.carbsPer100g || selectedFood.carbs || 0
-    };
-
     let nutrition;
     if (isCustom) {
-      const similar = foodDatabase.find(f => f.name.toLowerCase().includes(selectedFood.name.toLowerCase()));
-      nutrition = similar
-        ? calculateNutritionForAmount(normalizedFood, amount)
-        : { calories: 0, protein: 0, fat: 0, carbs: 0 };
+      // 🔥 ИСПОЛЬЗУЕМ ВВЕДЁННЫЕ ПОЛЬЗОВАТЕЛЕМ КАЛОРИИ
+      const cals = parseFloat(customCalories) || 0;
+      nutrition = {
+        calories: Math.round(cals * amount / 100),
+        protein: 0,
+        fat: 0,
+        carbs: 0
+      };
     } else {
+      const normalizedFood = {
+        ...selectedFood,
+        calories: selectedFood.caloriesPer100g || selectedFood.calories || 0,
+        protein: selectedFood.proteinPer100g || selectedFood.protein || 0,
+        fat: selectedFood.fatPer100g || selectedFood.fat || 0,
+        carbs: selectedFood.carbsPer100g || selectedFood.carbs || 0
+      };
       nutrition = calculateNutritionForAmount(normalizedFood, amount);
     }
 
@@ -143,13 +154,9 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
     setIsCustom(false);
     setSearch('');
     setWeight('100');
-    setActiveInput(null); // Сбрасываем активное поле
+    setCustomCalories('');
+    setEditingField(null);
     setTimeout(() => containerRef.current?.querySelector('#diary-search')?.focus(), 150);
-  };
-
-  // При потере фокуса полем -> деактивируем его (становится readOnly)
-  const handleInputBlur = () => {
-    setActiveInput(null);
   };
 
   const remaining = targets ? calculateRemaining(targets, totals) : {};
@@ -200,8 +207,7 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
           fullWidth
           placeholder="Поиск продукта..."
           value={search}
-          onChange={(e) => { setSearch(e.target.value); setSelectedFood(null); setIsCustom(false); }}
-          onBlur={handleInputBlur}
+          onChange={(e) => { setSearch(e.target.value); setSelectedFood(null); setIsCustom(false); setCustomCalories(''); }}
           inputProps={{
             style: { fontSize: 16, padding: '16px' },
             autoComplete: 'off',
@@ -237,7 +243,7 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
             </Button>
           ))}
 
-          {/* Кнопка "Свой продукт" с явным ID */}
+          {/* Кнопка "Свой продукт" */}
           {search.length > 2 && filteredFoods.length === 0 && (
             <Button
               id="custom-product-btn"
@@ -252,40 +258,61 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
           )}
         </Box>
 
-        {/* Вес и кнопка */}
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        {/* 🔥 ПОЛЕ ВЕСА (disabled пока не активировано) */}
+        <TextField
+          id="diary-weight"
+          label="Вес (г)"
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={weight}
+          onChange={(e) => setWeight(e.target.value.replace(/\D/g, ''))}
+          disabled={editingField !== 'weight'}
+          inputProps={{
+            style: { fontSize: 16, padding: '16px' },
+            autoComplete: 'off'
+          }}
+          sx={{
+            flex: 1,
+            mb: isCustom ? 1 : 2,
+            opacity: editingField === 'weight' ? 1 : 0.5
+          }}
+        />
+
+        {/* 🔥 ПОЛЕ КАЛОРИЙ (только для своего продукта) */}
+        {isCustom && (
           <TextField
-            id="diary-weight"
-            label="Вес (г)"
-            type="text"
+            id="custom-calories"
+            label="Калории (на 100г)"
+            type="number"
             inputMode="numeric"
-            pattern="[0-9]*"
-            value={weight}
-            onChange={(e) => setWeight(e.target.value.replace(/\D/g, ''))}
-            onBlur={handleInputBlur}
-            // 🔥 КЛЮЧЕВОЙ ФИКС: readOnly пока не активировано Enter'ом
+            value={customCalories}
+            onChange={(e) => setCustomCalories(e.target.value)}
+            disabled={editingField !== 'calories'}
             inputProps={{
-              readOnly: activeInput !== 'weight',
               style: { fontSize: 16, padding: '16px' },
-              autoComplete: 'off'
+              min: 0,
+              max: 1000
             }}
             sx={{
-              flex: 1,
-              // Визуально показываем что поле неактивно
-              opacity: activeInput === 'weight' ? 1 : 0.6
+              mb: 2,
+              opacity: editingField === 'calories' ? 1 : 0.5
             }}
           />
-          <Button
-            id="add-food-btn"
-            variant="contained"
-            onClick={handleAdd}
-            disabled={!selectedFood}
-            disableTouchRipple
-            sx={{ px: 3, fontSize: '1.1rem', fontWeight: 600, borderRadius: 1 }}
-          >
-            ➕ Добавить
-          </Button>
-        </Box>
+        )}
+
+        {/* Кнопка Добавить */}
+        <Button
+          id="add-food-btn"
+          variant="contained"
+          onClick={handleAdd}
+          disabled={!selectedFood}
+          disableTouchRipple
+          fullWidth
+          sx={{ py: 2, fontSize: '1.1rem', fontWeight: 600, borderRadius: 1, mt: 1 }}
+        >
+          ➕ Добавить ({isCustom && customCalories ? `${Math.round(parseFloat(customCalories) * parseInt(weight) / 100)} ккал` : '...'})
+        </Button>
       </Paper>
 
       {/* === 4. СЪЕДЕННОЕ === */}
