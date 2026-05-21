@@ -1,7 +1,7 @@
 // src/components/ProfileSetup.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Container, Paper, TextField, Button, Typography, Alert, Box,
+  Container, Paper, TextField, Button, Typography, Alert,
   FormControl, InputLabel, Select, MenuItem
 } from '@mui/material';
 
@@ -29,33 +29,34 @@ export default function ProfileSetup({ onSave, initialProfile }) {
     activityLevel: ActivityLevel.Moderate, goal: Goal.Maintain
   });
   const [error, setError] = useState('');
-  const containerRef = useRef(null);
 
-  // ✅ Начальный фокус строго на первое поле (Пол)
+  //  Рефы для каждого поля (строго по порядку навигации)
+  const genderRef = useRef(null);
+  const ageRef = useRef(null);
+  const heightRef = useRef(null);
+  const weightRef = useRef(null);
+  const activityRef = useRef(null);
+  const goalRef = useRef(null);
+  const saveRef = useRef(null);
+
+  // ✅ Автофокус на первое поле при загрузке
   useEffect(() => {
-    const timer = setTimeout(() => {
-      const first = containerRef.current?.querySelector('[tabindex="1"]');
-      first?.focus();
-    }, 200);
+    const timer = setTimeout(() => genderRef.current?.focus(), 200);
     return () => clearTimeout(timer);
   }, []);
 
-  // ✅ Обработка стрелок пульта (D-Pad)
-  const handleKeyDown = (e) => {
-    if (!containerRef.current?.contains(e.target)) return;
+  // ✅ Единый обработчик изменения: обновляет стейт + переключает фокус на следующее поле
+  const handleChange = (field, value, nextRef) => {
+    setProfile(prev => ({ ...prev, [field]: value }));
+    // Небольшая задержка, чтобы выпадающее меню успело закрыться перед переходом
+    setTimeout(() => nextRef?.current?.focus(), 150);
+  };
 
-    const current = document.activeElement;
-    const currentTab = parseInt(current.getAttribute('tabindex') || '0', 10);
-    if (currentTab === 0) return;
-
-    if (e.key === 'ArrowDown' || e.key === 'Enter') {
+  // ✅ Для текстовых полей: Enter переключает на следующее поле
+  const handleKeyDownNext = (e, nextRef) => {
+    if (e.key === 'Enter' || e.key === 'NumpadEnter') {
       e.preventDefault();
-      const next = containerRef.current.querySelector(`[tabindex="${currentTab + 1}"]`);
-      next?.focus();
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      const prev = containerRef.current.querySelector(`[tabindex="${Math.max(currentTab - 1, 1)}"]`);
-      prev?.focus();
+      nextRef?.current?.focus();
     }
   };
 
@@ -69,38 +70,23 @@ export default function ProfileSetup({ onSave, initialProfile }) {
 
   const handleSave = () => { if (validate()) onSave(profile); };
 
-  // Общий стиль для фокусируемых элементов ТВ
-  const tvFocusStyle = {
-    '&:focus-visible': {
-      outline: '3px solid #4f46e5',
-      outlineOffset: '2px',
-      borderRadius: '4px'
-    }
-  };
-
   return (
-    <Container
-      ref={containerRef}
-      onKeyDown={handleKeyDown}
-      maxWidth="sm" sx={{ mt: 4, mb: 8 }}
-    >
+    <Container maxWidth="sm" sx={{ mt: 4, mb: 8 }}>
       <Paper sx={{ p: 3 }}>
-        <Typography variant="h5" sx={{ mb: 3, fontSize: '1.4rem' }}>
-          ⚙️ Настройка профиля
-        </Typography>
+        <Typography variant="h5" sx={{ mb: 3, fontSize: '1.4rem' }}>⚙️ Настройка профиля</Typography>
 
         {error && <Alert severity="error" sx={{ mb: 2, fontSize: '1.1rem' }}>{error}</Alert>}
 
         {/* 1. Пол */}
-        <FormControl fullWidth sx={{ mb: 2, ...tvFocusStyle }}>
-          <InputLabel id="gender-label">Пол</InputLabel>
+        <FormControl fullWidth sx={{ mb: 2 }}>
+          <InputLabel>Пол</InputLabel>
           <Select
-            labelId="gender-label"
+            ref={genderRef}
             value={profile.gender}
             label="Пол"
-            tabIndex={1}
-            onChange={(e) => setProfile({ ...profile, gender: e.target.value })}
-            MenuProps={{ disableAutoFocus: true, disableEnforceFocus: true }}
+            onChange={(e) => handleChange('gender', e.target.value, ageRef)}
+            // Меню не перехватывает фокус после закрытия
+            MenuProps={{ disableAutoFocus: true }}
             sx={{ fontSize: '1.1rem', minHeight: 56 }}
           >
             <MenuItem value={Gender.Male}>Мужской</MenuItem>
@@ -110,44 +96,46 @@ export default function ProfileSetup({ onSave, initialProfile }) {
 
         {/* 2. Возраст */}
         <TextField
+          inputRef={ageRef}
           fullWidth label="Возраст (лет)"
           type="text" inputMode="numeric" pattern="[0-9]*"
           value={profile.age}
-          onChange={(e) => setProfile({ ...profile, age: Number(e.target.value) })}
-          tabIndex={2}
-          sx={{ mb: 2, '& input': { fontSize: '1.1rem', minHeight: 56 }, ...tvFocusStyle }}
+          onChange={(e) => handleChange('age', Number(e.target.value), heightRef)}
+          onKeyDown={(e) => handleKeyDownNext(e, heightRef)}
+          sx={{ mb: 2, '& input': { fontSize: '1.1rem', minHeight: 56 } }}
         />
 
         {/* 3. Рост */}
         <TextField
+          inputRef={heightRef}
           fullWidth label="Рост (см)"
           type="text" inputMode="numeric" pattern="[0-9]*"
           value={profile.height}
-          onChange={(e) => setProfile({ ...profile, height: Number(e.target.value) })}
-          tabIndex={3}
-          sx={{ mb: 2, '& input': { fontSize: '1.1rem', minHeight: 56 }, ...tvFocusStyle }}
+          onChange={(e) => handleChange('height', Number(e.target.value), weightRef)}
+          onKeyDown={(e) => handleKeyDownNext(e, weightRef)}
+          sx={{ mb: 2, '& input': { fontSize: '1.1rem', minHeight: 56 } }}
         />
 
         {/* 4. Вес */}
         <TextField
+          inputRef={weightRef}
           fullWidth label="Вес (кг)"
           type="text" inputMode="numeric" pattern="[0-9]*"
           value={profile.weight}
-          onChange={(e) => setProfile({ ...profile, weight: Number(e.target.value) })}
-          tabIndex={4}
-          sx={{ mb: 2, '& input': { fontSize: '1.1rem', minHeight: 56 }, ...tvFocusStyle }}
+          onChange={(e) => handleChange('weight', Number(e.target.value), activityRef)}
+          onKeyDown={(e) => handleKeyDownNext(e, activityRef)}
+          sx={{ mb: 2, '& input': { fontSize: '1.1rem', minHeight: 56 } }}
         />
 
         {/* 5. Активность */}
-        <FormControl fullWidth sx={{ mb: 2, ...tvFocusStyle }}>
-          <InputLabel id="activity-label">Уровень активности</InputLabel>
+        <FormControl fullWidth sx={{ mb: 2 }}>
+          <InputLabel>Уровень активности</InputLabel>
           <Select
-            labelId="activity-label"
+            ref={activityRef}
             value={profile.activityLevel}
             label="Уровень активности"
-            tabIndex={5}
-            onChange={(e) => setProfile({ ...profile, activityLevel: Number(e.target.value) })}
-            MenuProps={{ disableAutoFocus: true, disableEnforceFocus: true }}
+            onChange={(e) => handleChange('activityLevel', Number(e.target.value), goalRef)}
+            MenuProps={{ disableAutoFocus: true }}
             sx={{ fontSize: '1.1rem', minHeight: 56 }}
           >
             {Object.entries(activityLabels).map(([val, label]) => (
@@ -157,15 +145,14 @@ export default function ProfileSetup({ onSave, initialProfile }) {
         </FormControl>
 
         {/* 6. Цель */}
-        <FormControl fullWidth sx={{ mb: 3, ...tvFocusStyle }}>
-          <InputLabel id="goal-label">Цель</InputLabel>
+        <FormControl fullWidth sx={{ mb: 3 }}>
+          <InputLabel>Цель</InputLabel>
           <Select
-            labelId="goal-label"
+            ref={goalRef}
             value={profile.goal}
             label="Цель"
-            tabIndex={6}
-            onChange={(e) => setProfile({ ...profile, goal: e.target.value })}
-            MenuProps={{ disableAutoFocus: true, disableEnforceFocus: true }}
+            onChange={(e) => handleChange('goal', e.target.value, saveRef)}
+            MenuProps={{ disableAutoFocus: true }}
             sx={{ fontSize: '1.1rem', minHeight: 56 }}
           >
             {Object.entries(goalLabels).map(([val, label]) => (
@@ -174,14 +161,11 @@ export default function ProfileSetup({ onSave, initialProfile }) {
           </Select>
         </FormControl>
 
-        {/* 7. Кнопка */}
+        {/* 7. Сохранить */}
         <Button
+          ref={saveRef}
           fullWidth variant="contained" size="large" onClick={handleSave}
-          tabIndex={7}
-          sx={{
-            py: 2, fontSize: '1.2rem', fontWeight: 700,
-            ...tvFocusStyle
-          }}
+          sx={{ py: 2, fontSize: '1.2rem', fontWeight: 700 }}
         >
           ✅ Сохранить профиль
         </Button>
