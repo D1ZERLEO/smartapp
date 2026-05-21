@@ -1,7 +1,8 @@
+// src/components/ProfileSetup.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Container, Paper, TextField, Button, Typography, Alert, Box,
-  FormControl, FormLabel, RadioGroup, FormControlLabel, Radio
+  FormControl, InputLabel, Select, MenuItem
 } from '@mui/material';
 
 const Gender = { Male: 'male', Female: 'female' };
@@ -28,53 +29,41 @@ export default function ProfileSetup({ onSave, initialProfile }) {
     activityLevel: ActivityLevel.Moderate, goal: Goal.Maintain
   });
   const [error, setError] = useState('');
+  const formRef = useRef(null);
 
-  // ✅ Массив рефов для каждого блока формы (строго по порядку)
-  const fieldRefs = [
-    useRef(null), // Пол
-    useRef(null), // Возраст
-    useRef(null), // Рост
-    useRef(null), // Вес
-    useRef(null), // Активность
-    useRef(null), // Цель
-    useRef(null)  // Кнопка
-  ];
-
-  // Автофокус на первое поле при монтировании
+  // ✅ ТВ-навигация: перехватываем стрелки и Enter на уровне формы
   useEffect(() => {
-    fieldRefs[0].current?.focus();
-  }, []);
+    const handleKeyDown = (e) => {
+      // Работаем только внутри формы
+      if (!formRef.current?.contains(e.target)) return;
 
-  // ✅ Управление навигацией пультом
-  const handleContainerKeyDown = (e) => {
-    // Определяем текущий индекс фокуса
-    let currentIndex = fieldRefs.findIndex(
-      ref => ref.current === document.activeElement || ref.current?.contains(document.activeElement)
-    );
-    if (currentIndex === -1) currentIndex = 0;
+      const focusable = Array.from(formRef.current.querySelectorAll('input, select, button'));
+      const currentIdx = focusable.indexOf(document.activeElement);
+      if (currentIdx === -1) return;
 
-    if (e.key === 'ArrowDown' || e.key === 'Enter') {
-      e.preventDefault();
-      e.stopPropagation();
-      const next = (currentIndex + 1) % fieldRefs.length;
-      fieldRefs[next].current?.focus();
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      e.stopPropagation();
-      const prev = (currentIndex - 1 + fieldRefs.length) % fieldRefs.length;
-      fieldRefs[prev].current?.focus();
-    }
-  };
-
-  // ✅ Выбор варианта в RadioGroup по Enter/OK
-  const handleRadioSelect = (refIndex, valueKey, value) => {
-    return (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
+      if (e.key === 'ArrowDown' || e.key === 'Enter') {
         e.preventDefault();
-        setProfile(prev => ({ ...prev, [valueKey]: value }));
+        const next = Math.min(currentIdx + 1, focusable.length - 1);
+        focusable[next]?.focus();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const prev = Math.max(currentIdx - 1, 0);
+        focusable[prev]?.focus();
       }
     };
-  };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // ✅ Автофокус на первое поле после рендера
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const first = formRef.current?.querySelector('select, input, button');
+      first?.focus();
+    }, 150);
+    return () => clearTimeout(timer);
+  }, []);
 
   const validate = () => {
     if (profile.age < 12 || profile.age > 100) { setError('Возраст: 12–100 лет'); return false; }
@@ -86,143 +75,102 @@ export default function ProfileSetup({ onSave, initialProfile }) {
 
   const handleSave = () => { if (validate()) onSave(profile); };
 
-  // Общий стиль для фокусируемых блоков
-  const focusBoxStyle = {
-    tabIndex: 0,
-    outline: 'none',
-    '&:focus': {
-      outline: '3px solid #4f46e5',
-      outlineOffset: '4px',
-      borderRadius: '8px',
-      background: 'rgba(79, 70, 229, 0.04)'
-    }
-  };
-
   return (
     <Container maxWidth="sm" sx={{ mt: 4, mb: 8 }}>
       <Paper
+        ref={formRef}
         sx={{ p: { xs: 2, sm: 3 }, mb: 4 }}
-        onKeyDown={handleContainerKeyDown}
       >
-        <Typography variant="h5" gutterBottom sx={{ mb: 3, fontSize: { xs: '1.3rem', sm: '1.5rem' } }}>
-          ️ Настройка профиля
+        <Typography variant="h5" gutterBottom sx={{ mb: 2, fontSize: '1.4rem' }}>
+          ⚙️ Настройка профиля
         </Typography>
 
         {error && <Alert severity="error" sx={{ mb: 2, fontSize: '1.1rem' }}>{error}</Alert>}
 
-        {/* 1. Пол */}
-        <Box ref={fieldRefs[0]} sx={{ ...focusBoxStyle, mb: 2, p: 1 }}>
-          <FormControl component="fieldset" fullWidth>
-            <FormLabel component="legend" sx={{ mb: 1, fontSize: '1.1rem' }}>Пол</FormLabel>
-            <RadioGroup
-              row
-              value={profile.gender}
-              onChange={(e) => setProfile({ ...profile, gender: e.target.value })}
-              onKeyDown={(e) => e.stopPropagation()} // 🔒 Блокируем внутренние стрелки
-              sx={{ '& .MuiFormControlLabel-root': { mr: 3, fontSize: '1.1rem' } }}
-            >
-              <FormControlLabel
-                value={Gender.Male}
-                control={<Radio sx={{ fontSize: 28 }} />}
-                label="Мужской"
-                onKeyDown={handleRadioSelect(0, 'gender', Gender.Male)}
-              />
-              <FormControlLabel
-                value={Gender.Female}
-                control={<Radio sx={{ fontSize: 28 }} />}
-                label="Женский"
-                onKeyDown={handleRadioSelect(0, 'gender', Gender.Female)}
-              />
-            </RadioGroup>
-          </FormControl>
-        </Box>
-
-        {/* 2. Возраст */}
-        <Box ref={fieldRefs[1]} sx={{ ...focusBoxStyle, mb: 2, p: 1 }}>
-          <TextField
-            fullWidth label="Возраст (лет)" type="number" inputMode="numeric"
-            value={profile.age} onChange={(e) => setProfile({ ...profile, age: Number(e.target.value) })}
-            inputProps={{ min: 12, max: 100, style: { fontSize: '1.2rem' } }}
-          />
-        </Box>
-
-        {/* 3. Рост */}
-        <Box ref={fieldRefs[2]} sx={{ ...focusBoxStyle, mb: 2, p: 1 }}>
-          <TextField
-            fullWidth label="Рост (см)" type="number" inputMode="numeric"
-            value={profile.height} onChange={(e) => setProfile({ ...profile, height: Number(e.target.value) })}
-            inputProps={{ min: 120, max: 220, style: { fontSize: '1.2rem' } }}
-          />
-        </Box>
-
-        {/* 4. Вес */}
-        <Box ref={fieldRefs[3]} sx={{ ...focusBoxStyle, mb: 2, p: 1 }}>
-          <TextField
-            fullWidth label="Вес (кг)" type="number" inputMode="numeric"
-            value={profile.weight} onChange={(e) => setProfile({ ...profile, weight: Number(e.target.value) })}
-            inputProps={{ min: 30, max: 200, style: { fontSize: '1.2rem' } }}
-          />
-        </Box>
-
-        {/* 5. Активность */}
-        <Box ref={fieldRefs[4]} sx={{ ...focusBoxStyle, mb: 2, p: 1 }}>
-          <FormControl component="fieldset" fullWidth>
-            <FormLabel component="legend" sx={{ mb: 1, fontSize: '1.1rem' }}>Уровень активности</FormLabel>
-            <RadioGroup
-              value={profile.activityLevel}
-              onChange={(e) => setProfile({ ...profile, activityLevel: Number(e.target.value) })}
-              onKeyDown={(e) => e.stopPropagation()}
-              sx={{ '& .MuiFormControlLabel-root': { mb: 0.5, fontSize: '1.05rem' } }}
-            >
-              {Object.entries(activityLabels).map(([val, label]) => (
-                <FormControlLabel
-                  key={val}
-                  value={Number(val)}
-                  control={<Radio sx={{ fontSize: 28 }} />}
-                  label={label}
-                  onKeyDown={handleRadioSelect(4, 'activityLevel', Number(val))}
-                />
-              ))}
-            </RadioGroup>
-          </FormControl>
-        </Box>
-
-        {/* 6. Цель */}
-        <Box ref={fieldRefs[5]} sx={{ ...focusBoxStyle, mb: 3, p: 1 }}>
-          <FormControl component="fieldset" fullWidth>
-            <FormLabel component="legend" sx={{ mb: 1, fontSize: '1.1rem' }}>Цель</FormLabel>
-            <RadioGroup
-              row
-              value={profile.goal}
-              onChange={(e) => setProfile({ ...profile, goal: e.target.value })}
-              onKeyDown={(e) => e.stopPropagation()}
-              sx={{ '& .MuiFormControlLabel-root': { mr: 3, fontSize: '1.1rem' } }}
-            >
-              {Object.entries(goalLabels).map(([val, label]) => (
-                <FormControlLabel
-                  key={val}
-                  value={val}
-                  control={<Radio sx={{ fontSize: 28 }} />}
-                  label={label}
-                  onKeyDown={handleRadioSelect(5, 'goal', val)}
-                />
-              ))}
-            </RadioGroup>
-          </FormControl>
-        </Box>
-
-        {/* 7. Кнопка */}
-        <Box ref={fieldRefs[6]} sx={{ ...focusBoxStyle, p: 1 }}>
-          <Button
-            fullWidth variant="contained" size="large" onClick={handleSave}
-            sx={{
-              py: 2, fontSize: '1.2rem', fontWeight: 700,
-              '&:focus': { outline: 'none' } // outline управляется wrapper'ом
-            }}
+        {/* Пол */}
+        <FormControl fullWidth sx={{ mb: 2 }}>
+          <InputLabel>Пол</InputLabel>
+          <Select
+            value={profile.gender}
+            label="Пол"
+            onChange={(e) => setProfile({ ...profile, gender: e.target.value })}
+            MenuProps={{ disableScrollLock: true }}
+            sx={{ fontSize: '1.1rem', '& .MuiSelect-select': { py: 1.5 } }}
           >
-            ✅ Сохранить профиль
-          </Button>
-        </Box>
+            <MenuItem value={Gender.Male}>Мужской</MenuItem>
+            <MenuItem value={Gender.Female}>Женский</MenuItem>
+          </Select>
+        </FormControl>
+
+        {/* Возраст */}
+        <TextField
+          fullWidth label="Возраст (лет)"
+          type="text" inputMode="numeric" pattern="\d*"
+          value={profile.age}
+          onChange={(e) => setProfile({ ...profile, age: Number(e.target.value) })}
+          sx={{ mb: 2, '& input': { fontSize: '1.1rem', py: 1.5 } }}
+        />
+
+        {/* Рост */}
+        <TextField
+          fullWidth label="Рост (см)"
+          type="text" inputMode="numeric" pattern="\d*"
+          value={profile.height}
+          onChange={(e) => setProfile({ ...profile, height: Number(e.target.value) })}
+          sx={{ mb: 2, '& input': { fontSize: '1.1rem', py: 1.5 } }}
+        />
+
+        {/* Вес */}
+        <TextField
+          fullWidth label="Вес (кг)"
+          type="text" inputMode="numeric" pattern="\d*"
+          value={profile.weight}
+          onChange={(e) => setProfile({ ...profile, weight: Number(e.target.value) })}
+          sx={{ mb: 2, '& input': { fontSize: '1.1rem', py: 1.5 } }}
+        />
+
+        {/* Активность */}
+        <FormControl fullWidth sx={{ mb: 2 }}>
+          <InputLabel>Уровень активности</InputLabel>
+          <Select
+            value={profile.activityLevel}
+            label="Уровень активности"
+            onChange={(e) => setProfile({ ...profile, activityLevel: Number(e.target.value) })}
+            MenuProps={{ disableScrollLock: true }}
+            sx={{ fontSize: '1.1rem', '& .MuiSelect-select': { py: 1.5 } }}
+          >
+            {Object.entries(activityLabels).map(([val, label]) => (
+              <MenuItem key={val} value={Number(val)}>{label}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        {/* Цель */}
+        <FormControl fullWidth sx={{ mb: 3 }}>
+          <InputLabel>Цель</InputLabel>
+          <Select
+            value={profile.goal}
+            label="Цель"
+            onChange={(e) => setProfile({ ...profile, goal: e.target.value })}
+            MenuProps={{ disableScrollLock: true }}
+            sx={{ fontSize: '1.1rem', '& .MuiSelect-select': { py: 1.5 } }}
+          >
+            {Object.entries(goalLabels).map(([val, label]) => (
+              <MenuItem key={val} value={val}>{label}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        {/* Кнопка */}
+        <Button
+          fullWidth variant="contained" size="large" onClick={handleSave}
+          sx={{
+            py: 2, fontSize: '1.2rem', fontWeight: 700,
+            '&:focus': { outline: '3px solid #4f46e5', outlineOffset: 2 }
+          }}
+        >
+          ✅ Сохранить профиль
+        </Button>
       </Paper>
     </Container>
   );
