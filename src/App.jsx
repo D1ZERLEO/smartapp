@@ -73,6 +73,15 @@ function App() {
     setTimeout(() => setToast(null), 3500);
   }, []);
 
+  const sendVoiceReply = useCallback((text) => {
+    if (assistantRef.current?.sendData && text) {
+      assistantRef.current.sendData({
+        type: 'smart_app_data',
+        smart_app_data: { text, pronounceText: text }
+      });
+    }
+  }, []);
+
   const handleAssistantReady = useCallback((assistant) => {
     assistantRef.current = assistant;
   }, []);
@@ -118,7 +127,8 @@ function App() {
       carbs: prev.carbs + (meal.carbs || 0)
     }));
     showToast(`✅ Добавлено: ${meal.productName} (${meal.calories} ккал)`);
-  }, [showToast]);
+    sendVoiceReply(`Добавлено ${meal.productName}, ${meal.calories} калорий.`);
+  }, [showToast, sendVoiceReply]);
 
   const handleDeleteFood = useCallback((mealId) => {
     const mealToDelete = mealsRef.current.find(m => m.id === mealId);
@@ -139,7 +149,8 @@ function App() {
     }));
 
     showToast(`🗑️ Удалено: ${mealToDelete.productName}`);
-  }, [showToast]);
+    sendVoiceReply(`Удалено ${mealToDelete.productName}`);
+  }, [showToast, sendVoiceReply]);
 
   const handleSaveProfile = (newProfile) => {
     setProfile(newProfile);
@@ -147,6 +158,7 @@ function App() {
     localStorage.setItem('nutrition_profile', JSON.stringify(newProfile));
     localStorage.setItem('nutrition_targets', JSON.stringify(calculateNutritionTargets(newProfile)));
     showToast('✅ Профиль сохранён');
+    sendVoiceReply('Профиль успешно сохранён.');
   };
 
   const handleBackendAction = useCallback((action) => {
@@ -171,6 +183,7 @@ function App() {
           handleAddFood({ id: Date.now().toString(), productName: found.name, amount, ...calculateNutritionForAmount(found, amount), date: new Date().toISOString().split('T')[0], timestamp: Date.now() });
         } else {
           showToast(`❌ Продукт "${productName}" не найден`);
+          sendVoiceReply(`Продукт ${productName} не найден.`);
         }
         break;
       }
@@ -182,60 +195,38 @@ function App() {
           setTotals(p => ({ calories: p.calories - (last.calories||0), protein: p.protein - (last.protein||0), fat: p.fat - (last.fat||0), carbs: p.carbs - (last.carbs||0) }));
           localStorage.setItem('nutrition_meals', JSON.stringify(JSON.parse(localStorage.getItem('nutrition_meals')||'[]').filter(m => m.id !== last.id)));
           showToast('🗑️ Запись удалена');
+          sendVoiceReply('Последняя запись удалена.');
         }
         break;
       }
       case 'get_progress':
         setCurrentTab(0);
         const pMsg = `Сегодня: ${totalsRef.current.calories} ккал. Б:${totalsRef.current.protein}г Ж:${totalsRef.current.fat}г У:${totalsRef.current.carbs}г`;
-        showToast(pMsg); break;
+        showToast(pMsg); sendVoiceReply(pMsg); break;
       case 'get_recommendations':
         setCurrentTab(0);
-        if (!targetsRef.current) { showToast('⚠️ Настройте профиль'); break; }
+        if (!targetsRef.current) { showToast('⚠️ Настройте профиль'); sendVoiceReply('Сначала настройте профиль.'); break; }
         const recs = getRecommendations(calculateRemaining(targetsRef.current, totalsRef.current));
         const rMsg = recs.length ? `Рекомендую: ${recs.map(r=>r.items.join(', ')).join('; ')}` : 'Норма выполнена!';
-        showToast(rMsg); break;
+        showToast(rMsg); sendVoiceReply(rMsg); break;
       case 'search_recipes': {
         const ings = action.parameters?.ingredients || [];
         setCurrentTab(1); setRecipeTrigger(ings);
         const msg = ings.length ? 'Ищу рецепты...' : 'Открываю все рецепты.';
-        showToast(msg); break;
+        showToast(msg); sendVoiceReply(msg); break;
       }
       default: break;
     }
-  }, [handleAddFood, showToast]);
+  }, [handleAddFood, showToast, sendVoiceReply]);
 
-  // ✅ ГЛАВНОЕ: РЕАЛЬНЫЕ ФУНКЦИИ ВМЕСТО ПУСТЫХ
   const handleAssistantCommand = useCallback((text) => {
-    console.log('🗣️ Команда:', text);
-
-    const result = parseNutritionCommand(text, {
+    return parseNutritionCommand(text, {
       totals: totalsRef.current,
       remaining: targetsRef.current ? calculateRemaining(targetsRef.current, totalsRef.current) : {},
       recommendations: targetsRef.current ? getRecommendations(calculateRemaining(targetsRef.current, totalsRef.current)) : [],
-
-      addFood: (meal) => {
-        handleAddFood(meal);
-        return `✅ Добавлено ${meal.productName}`;
-      },
-      deleteLastFood: () => {
-        const current = mealsRef.current;
-        if (current.length > 0) {
-          handleDeleteFood(current[current.length - 1].id);
-          return '🗑️ Удалено';
-        }
-        return '❌ Нечего удалять';
-      },
-      searchRecipes: (ingredients) => {
-        setCurrentTab(1);
-        setRecipeTrigger(ingredients);
-        return ingredients.length ? `🔍 Ищу: ${ingredients.join(', ')}` : '🔍 Ищу рецепты';
-      }
+      addFood: () => {}, deleteLastFood: () => {}, searchRecipes: () => {}
     });
-
-    console.log('📤 Ответ:', result);
-    return result || '';
-  }, [handleAddFood, handleDeleteFood, setCurrentTab, setRecipeTrigger]);
+  }, []);
 
   if (!profile || !targets) return <ProfileSetup onSave={handleSaveProfile} />;
 
@@ -264,11 +255,24 @@ function App() {
           {currentTab === 2 && <Container maxWidth="sm" sx={{ mt: 4 }}><ProfileSetup onSave={handleSaveProfile} initialProfile={profile} /></Container>}
         </Container>
 
+        {/* 🔥 БОЛЬШОЙ КРАСИВЫЙ TOAST */}
         {toast && (
           <Box sx={{
-            position: 'fixed', top: '80px', left: '50%', transform: 'translateX(-50%)',
-            background: '#000', color: '#fff', padding: '12px 24px', borderRadius: '16px',
-            fontSize: '14px', fontWeight: 500, zIndex: 99999, boxShadow: 3, textAlign: 'center'
+            position: 'fixed',
+            top: '80px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: '#fff',
+            padding: '16px 32px',
+            borderRadius: '12px',
+            fontSize: '16px',
+            fontWeight: 600,
+            zIndex: 99999,
+            boxShadow: '0 8px 32px rgba(102, 126, 234, 0.4)',
+            textAlign: 'center',
+            minWidth: '300px',
+            animation: 'slideIn 0.3s ease-out'
           }}>
             {toast}
           </Box>

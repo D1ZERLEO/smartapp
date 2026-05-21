@@ -14,17 +14,29 @@ export default function AssistantPanel({ onCommand, onBackendAction, token: toke
     const smartappId = smartappIdProp || process.env.REACT_APP_SMARTAPP;
     if (!token) { console.warn('⚠️ Нет токена'); return; }
 
-    // Гарантируем правильный appInitialData
-    if (!window.appInitialData || typeof window.appInitialData !== 'object' || Array.isArray(window.appInitialData)) {
+    // 🔥 Создаём правильный объект (БЕЗ Object.defineProperty)
+    if (!window.appInitialData || Array.isArray(window.appInitialData)) {
       window.appInitialData = {
-        applicationId: 'local-dev-app',
+        applicationId: 'local-dev-app-' + Date.now(),
         projectId: smartappId,
-        token,
+        token: token,
         device: { platformType: 'WEB' },
         surface: 'COMPANION',
         locale: 'ru'
       };
+    } else {
+      // Если уже объект — добавляем/обновляем поля
+      if (!window.appInitialData.applicationId) {
+        window.appInitialData.applicationId = 'local-dev-app-' + Date.now();
+      }
+      window.appInitialData.projectId = smartappId;
+      window.appInitialData.token = token;
+      window.appInitialData.device = window.appInitialData.device || { platformType: 'WEB' };
+      window.appInitialData.surface = window.appInitialData.surface || 'COMPANION';
     }
+
+    console.log('✅ window.appInitialData:', window.appInitialData);
+    console.log('✅ applicationId:', window.appInitialData.applicationId);
 
     const getState = () => {
       try {
@@ -50,7 +62,10 @@ export default function AssistantPanel({ onCommand, onBackendAction, token: toke
         getState,
         nativePanel: { defaultText: 'Скажите или напишите команду' },
         surface: 'COMPANION',
-        settings: { disableTts: true }
+        settings: {
+          disableTts: true,
+          disableListen: true
+        }
       });
 
       assistant.on('data', (event) => {
