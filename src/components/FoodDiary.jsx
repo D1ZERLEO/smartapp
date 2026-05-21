@@ -11,32 +11,35 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
   const [isCustom, setIsCustom] = useState(false);
   const containerRef = useRef(null);
 
-  // 🔒 Жёсткая ТВ-навигация (работает до того, как инпуты перехватят событие)
+  // 🔒 ТВ-НАВИГАЦИЯ: только перехват стрелок и Enter
   const handleKeyDownCapture = useCallback((e) => {
-    const arrows = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
-    if (arrows.includes(e.key) || e.key === 'Enter') {
-      const focusable = Array.from(containerRef.current.querySelectorAll('input, button'))
-        .filter(el => !el.disabled && el.offsetParent !== null);
-      const currentIdx = focusable.indexOf(document.activeElement);
-      if (currentIdx === -1) return;
+    const focusable = Array.from(containerRef.current.querySelectorAll('input, button'))
+      .filter(el => !el.disabled && el.offsetParent !== null);
+    const currentIdx = focusable.indexOf(document.activeElement);
 
-      // ВНИЗ / ВПРАВО / ENTER → следующий элемент
-      if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === 'Enter') {
-        if (document.activeElement.tagName === 'INPUT') e.preventDefault(); // блокируем курсор/зум
-        const next = Math.min(currentIdx + 1, focusable.length - 1);
-        focusable[next]?.focus();
-      }
-      // ВВЕРХ / ВЛЕВО → предыдущий элемент
-      else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
-        if (currentIdx > 0) {
-          e.preventDefault();
-          const prev = currentIdx - 1;
-          focusable[prev]?.focus();
-        } else {
-          // 🔥 КЛЮЧЕВОЙ ФИКС: если мы на самом верху, снимаем фокус и отпускаем его на вкладки
-          e.target.blur();
-          e.stopPropagation();
-        }
+    // 1. Стрелки внутри ИНПУТОВ -> блокируем изменение значения, переводим фокус
+    if (document.activeElement.tagName === 'INPUT' && ['ArrowUp', 'ArrowDown'].includes(e.key)) {
+      e.preventDefault();
+      const nextIdx = e.key === 'ArrowDown' ? Math.min(currentIdx + 1, focusable.length - 1) : Math.max(currentIdx - 1, 0);
+      focusable[nextIdx]?.focus();
+      return;
+    }
+
+    // 2. ВНИЗ / ВПРАВО / ENTER -> следующий элемент
+    if (['ArrowDown', 'ArrowRight', 'Enter', 'NumpadEnter'].includes(e.key)) {
+      e.preventDefault();
+      const next = Math.min(currentIdx + 1, focusable.length - 1);
+      focusable[next]?.focus();
+    }
+    // 3. ВВЕРХ / ВЛЕВО -> предыдущий или выход на вкладки
+    else if (['ArrowUp', 'ArrowLeft'].includes(e.key)) {
+      e.preventDefault();
+      if (currentIdx === 0) {
+        // 🔥 ЯВНЫЙ ВЫХОД НА ВКЛАДКИ (MUI рендерит их с role="tab")
+        const firstTab = document.querySelector('button[role="tab"]');
+        if (firstTab) firstTab.focus();
+      } else {
+        focusable[currentIdx - 1]?.focus();
       }
     }
   }, []);
@@ -64,7 +67,6 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
     if (!selectedFood) return;
     const amount = parseInt(weight) || 100;
 
-    // Если продукт свой, считаем КБЖУ как 0 или базовые (можно доработать)
     const nutrition = isCustom
       ? { calories: 0, protein: 0, fat: 0, carbs: 0 }
       : calculateNutritionForAmount(selectedFood, amount);
@@ -85,7 +87,6 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
     setTimeout(() => containerRef.current?.querySelector('#diary-search')?.focus(), 150);
   };
 
-  // Прогресс и рекомендации
   const remaining = targets ? calculateRemaining(targets, totals) : {};
   const recommendations = targets ? getRecommendations(remaining) : [];
 
@@ -143,7 +144,7 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
           sx={{ mb: 2 }}
         />
 
-        {/* Список из базы */}
+        {/* ✅ СПИСОК С ИСПРАВЛЕННОЙ ВЁРСТКОЙ (число всегда видно) */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
           {filteredFoods.map((food) => (
             <Button
@@ -160,7 +161,10 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
                 border: selectedFood?.name === food.name && !isCustom ? '2px solid #4f46e5' : '1px solid #ccc'
               }}
             >
-              {food.name} <span style={{ marginLeft: 'auto', fontSize: '0.85rem', opacity: 0.7 }}>{food.calories} ккал/100г</span>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                <Typography sx={{ fontWeight: 500 }}>{food.name}</Typography>
+                <Typography sx={{ fontSize: '0.85rem', opacity: 0.7, ml: 1 }}>{food.calories ?? 0} ккал/100г</Typography>
+              </Box>
             </Button>
           ))}
 
@@ -216,7 +220,7 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
                   <Box>
                     <Typography sx={{ fontSize: '1.1rem', fontWeight: 500 }}>{meal.productName}</Typography>
                     <Typography sx={{ fontSize: '0.9rem', color: 'text.secondary' }}>
-                      {meal.amount}г •  {meal.calories} ккал
+                      {meal.amount}г • 🔥 {meal.calories} ккал
                     </Typography>
                   </Box>
                   <Button
