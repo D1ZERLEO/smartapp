@@ -1,4 +1,5 @@
-// 🔥 МОК ДО ВСЕХ IMPORT
+/* eslint-disable import/first */
+// 🔥 МОК ДО ВСЕХ IMPORT — ОБЯЗАТЕЛЬНО ДО ЗАГРУЗКИ SDK
 if (typeof window !== 'undefined' && !window.appInitialData) {
   window.appInitialData = {
     applicationId: 'local-dev-app',
