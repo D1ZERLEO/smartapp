@@ -1,285 +1,186 @@
-import React, { useState } from 'react';
+// src/components/FoodDiary.jsx
+import React, { useState, useRef, useEffect } from 'react';
 import {
-  Container,
-  Paper,
-  Typography,
-  TextField,
-  Button,
-  List,
-  ListItem,
-  ListItemText,
-  IconButton,
-  Box,
-  LinearProgress,
-  Grid,
-  Chip,
-  Autocomplete,
-  Alert
+  Container, Paper, Typography, Box, Button, TextField, Divider
 } from '@mui/material';
-import DeleteIcon from '@mui/icons-material/Delete';
-import { foodDatabase, searchFood } from '../utils/foodDatabase';
+import { foodDatabase } from '../utils/foodDatabase';
 import { calculateNutritionForAmount } from '../utils/nutritionCalculator';
 
 export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, meals }) {
+  const [search, setSearch] = useState('');
   const [selectedFood, setSelectedFood] = useState(null);
-  const [amount, setAmount] = useState(100);
-  const [customFood, setCustomFood] = useState({ name: '', calories: 0, protein: 0, fat: 0, carbs: 0 });
-  const [showCustom, setShowCustom] = useState(false);
+  const [weight, setWeight] = useState('100');
+  const diaryRef = useRef(null);
 
-  const handleAddFood = () => {
-    if (selectedFood && amount > 0) {
-      const nutrition = calculateNutritionForAmount(selectedFood, amount);
-      onAddFood({
-        id: Date.now().toString(),
-        productName: selectedFood.name,
-        amount: amount,
-        ...nutrition,
-        date: new Date().toISOString().split('T')[0],
-        timestamp: Date.now()
-      });
-      setSelectedFood(null);
-      setAmount(100);
-    }
+  // ✅ Автофокус на поле поиска при открытии вкладки
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const input = diaryRef.current?.querySelector('input');
+      input?.focus();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Фильтрация: показываем совпадения или топ-12 популярных
+  const filteredFoods = search.length > 1
+    ? foodDatabase.filter(f => f.name.toLowerCase().includes(search.toLowerCase()))
+    : foodDatabase.slice(0, 12);
+
+  const handleSelectFood = (food) => {
+    setSelectedFood(food);
+    setSearch(food.name);
   };
 
-  const handleAddCustomFood = () => {
-    if (customFood.name && customFood.calories > 0) {
-      const factor = amount / 100;
-      onAddFood({
-        id: Date.now().toString(),
-        productName: customFood.name,
-        amount: amount,
-        calories: Math.round(customFood.calories * factor),
-        protein: Math.round(customFood.protein * factor),
-        fat: Math.round(customFood.fat * factor),
-        carbs: Math.round(customFood.carbs * factor),
-        date: new Date().toISOString().split('T')[0],
-        timestamp: Date.now()
-      });
-      setCustomFood({ name: '', calories: 0, protein: 0, fat: 0, carbs: 0 });
-      setAmount(100);
-      setShowCustom(false);
-    }
-  };
+  const handleAdd = () => {
+    if (!selectedFood) return;
+    const amount = Number(weight) || 100;
+    const nutrition = calculateNutritionForAmount(selectedFood, amount);
 
-  const getProgressColor = (current, target) => {
-    const percent = (current / target) * 100;
-    if (percent >= 100) return 'error';
-    if (percent >= 85) return 'warning';
-    return 'success';
-  };
+    onAddFood({
+      id: Date.now().toString(),
+      productName: selectedFood.name,
+      amount,
+      ...nutrition,
+      date: new Date().toISOString().split('T')[0],
+      timestamp: Date.now()
+    });
 
-  const remaining = {
-    calories: targets.calories - totals.calories,
-    protein: targets.protein - totals.protein,
-    fat: targets.fat - totals.fat,
-    carbs: targets.carbs - totals.carbs
+    // Сброс формы после добавления
+    setSelectedFood(null);
+    setSearch('');
+    setWeight('100');
+
+    // Возвращаем фокус на поиск для быстрого добавления следующего
+    setTimeout(() => diaryRef.current?.querySelector('input')?.focus(), 200);
   };
 
   return (
-    <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-      <Grid container spacing={3}>
-        {/* Прогресс */}
-        <Grid item xs={12}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6">Прогресс на сегодня</Typography>
-            <Box sx={{ mt: 2 }}>
-              <Typography>Калории: {totals.calories} / {targets.calories} ккал</Typography>
-              <LinearProgress 
-                variant="determinate" 
-                value={Math.min((totals.calories / targets.calories) * 100, 100)}
-                color={getProgressColor(totals.calories, targets.calories)}
-                sx={{ mb: 2 }}
-              />
-              
-              <Typography>Белки: {totals.protein} / {targets.protein} г</Typography>
-              <LinearProgress 
-                variant="determinate" 
-                value={Math.min((totals.protein / targets.protein) * 100, 100)}
-                color={getProgressColor(totals.protein, targets.protein)}
-                sx={{ mb: 2 }}
-              />
-              
-              <Typography>Жиры: {totals.fat} / {targets.fat} г</Typography>
-              <LinearProgress 
-                variant="determinate" 
-                value={Math.min((totals.fat / targets.fat) * 100, 100)}
-                color={getProgressColor(totals.fat, targets.fat)}
-                sx={{ mb: 2 }}
-              />
-              
-              <Typography>Углеводы: {totals.carbs} / {targets.carbs} г</Typography>
-              <LinearProgress 
-                variant="determinate" 
-                value={Math.min((totals.carbs / targets.carbs) * 100, 100)}
-                color={getProgressColor(totals.carbs, targets.carbs)}
-              />
-            </Box>
-          </Paper>
-        </Grid>
+    <Container ref={diaryRef} maxWidth="lg" sx={{ mt: 2, mb: 6 }}>
+      {/* === БЛОК ДОБАВЛЕНИЯ === */}
+      <Paper sx={{ p: 2, mb: 3 }}>
+        <Typography variant="h6" sx={{ mb: 2, fontSize: '1.2rem', fontWeight: 600 }}>
+          📋 Добавить продукт
+        </Typography>
 
-        {/* Добавление продукта */}
-        <Grid item xs={12}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>Добавить приём пищи</Typography>
-            
-            {!showCustom ? (
-              <>
-                <Autocomplete
-                  options={foodDatabase}
-                  getOptionLabel={(option) => option.name}
-                  value={selectedFood}
-                  onChange={(_, newValue) => setSelectedFood(newValue)}
-                  renderInput={(params) => (
-                    <TextField {...params} label="Поиск продукта" fullWidth />
-                  )}
-                  sx={{ mb: 2 }}
-                />
-                
-                <TextField
-                  fullWidth
-                  label="Количество (грамм)"
-                  type="number"
-                  value={amount}
-                  onChange={(e) => setAmount(Number(e.target.value))}
-                  sx={{ mb: 2 }}
-                />
-                
-                <Button 
-                  variant="contained" 
-                  onClick={handleAddFood}
-                  disabled={!selectedFood}
-                  fullWidth
-                >
-                  Добавить продукт
-                </Button>
-                
-                <Button 
-                  variant="text" 
-                  onClick={() => setShowCustom(true)}
-                  fullWidth
-                  sx={{ mt: 1 }}
-                >
-                  Или добавить свой продукт
-                </Button>
-              </>
-            ) : (
-              <>
-                <TextField
-                  fullWidth
-                  label="Название продукта"
-                  value={customFood.name}
-                  onChange={(e) => setCustomFood({ ...customFood, name: e.target.value })}
-                  sx={{ mb: 2 }}
-                />
-                <TextField
-                  fullWidth
-                  label="Калории на 100г"
-                  type="number"
-                  value={customFood.calories}
-                  onChange={(e) => setCustomFood({ ...customFood, calories: Number(e.target.value) })}
-                  sx={{ mb: 2 }}
-                />
-                <TextField
-                  fullWidth
-                  label="Белки на 100г"
-                  type="number"
-                  value={customFood.protein}
-                  onChange={(e) => setCustomFood({ ...customFood, protein: Number(e.target.value) })}
-                  sx={{ mb: 2 }}
-                />
-                <TextField
-                  fullWidth
-                  label="Жиры на 100г"
-                  type="number"
-                  value={customFood.fat}
-                  onChange={(e) => setCustomFood({ ...customFood, fat: Number(e.target.value) })}
-                  sx={{ mb: 2 }}
-                />
-                <TextField
-                  fullWidth
-                  label="Углеводы на 100г"
-                  type="number"
-                  value={customFood.carbs}
-                  onChange={(e) => setCustomFood({ ...customFood, carbs: Number(e.target.value) })}
-                  sx={{ mb: 2 }}
-                />
-                <TextField
-                  fullWidth
-                  label="Количество (грамм)"
-                  type="number"
-                  value={amount}
-                  onChange={(e) => setAmount(Number(e.target.value))}
-                  sx={{ mb: 2 }}
-                />
-                
-                <Button variant="contained" onClick={handleAddCustomFood} fullWidth>
-                  Добавить свой продукт
-                </Button>
-                <Button variant="text" onClick={() => setShowCustom(false)} fullWidth sx={{ mt: 1 }}>
-                  Назад к поиску
-                </Button>
-              </>
-            )}
-          </Paper>
-        </Grid>
+        {/* 1. Поле поиска (просто input, без выпадашек) */}
+        <TextField
+          fullWidth
+          placeholder="Начните вводить название..."
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setSelectedFood(null);
+          }}
+          inputProps={{ style: { fontSize: 16, padding: '16px' } }}
+          sx={{ mb: 2 }}
+        />
 
-        {/* Список съеденного */}
-        <Grid item xs={12}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>Сегодня съедено</Typography>
-            <List>
-              {meals.map((meal) => (
-                <ListItem
-                  key={meal.id}
-                  secondaryAction={
-                    <IconButton edge="end" onClick={() => onDeleteFood(meal.id)}>
-                      <DeleteIcon />
-                    </IconButton>
-                  }
-                >
-                  <ListItemText
-                    primary={meal.productName}
-                    secondary={`${meal.amount}г | ${meal.calories} ккал | Б:${meal.protein} Ж:${meal.fat} У:${meal.carbs}`}
-                  />
-                </ListItem>
-              ))}
-              {meals.length === 0 && (
-                <Typography color="textSecondary" align="center">
-                  Пока ничего не съедено. Добавьте первый приём пищи!
-                </Typography>
-              )}
-            </List>
-          </Paper>
-        </Grid>
+        {/* 2. Список продуктов (кнопки = нативная навигация пульта) */}
+        <Box sx={{
+          maxHeight: 220,
+          overflowY: 'auto',
+          mb: 2,
+          border: '1px solid #e0e0e0',
+          borderRadius: 2,
+          background: '#fafafa'
+        }}>
+          {filteredFoods.map((food) => (
+            <Button
+              key={food.name}
+              fullWidth
+              variant={selectedFood?.name === food.name ? 'contained' : 'text'}
+              onClick={() => handleSelectFood(food)}
+              disableTouchRipple
+              sx={{
+                justifyContent: 'flex-start',
+                px: 2, py: 1.5,
+                fontSize: '1rem',
+                textTransform: 'none',
+                borderBottom: '1px solid #eee',
+                '&:last-child': { borderBottom: 'none' },
+                borderRadius: 0
+              }}
+            >
+              {food.name}
+            </Button>
+          ))}
+          {filteredFoods.length === 0 && (
+            <Typography sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
+              Ничего не найдено
+            </Typography>
+          )}
+        </Box>
 
-        {/* Рекомендации */}
-        <Grid item xs={12}>
-          <Paper sx={{ p: 2, bgcolor: '#f5f5f5' }}>
-            <Typography variant="h6" gutterBottom>💡 Рекомендации</Typography>
-            {remaining.calories < 0 && (
-              <Alert severity="warning" sx={{ mb: 1 }}>
-                ⚠️ Вы превысили дневную норму калорий на {Math.abs(remaining.calories)} ккал!
-              </Alert>
-            )}
-            {remaining.calories > 0 && remaining.calories < 300 && (
-              <Alert severity="info" sx={{ mb: 1 }}>
-                Осталось всего {remaining.calories} ккал. Выбирайте лёгкие продукты!
-              </Alert>
-            )}
-            {remaining.protein > 30 && (
-              <Alert severity="success" sx={{ mb: 1 }}>
-                💪 Добавьте белка: курица, яйца, творог, рыба
-              </Alert>
-            )}
-            {remaining.carbs > 50 && (
-              <Alert severity="success" sx={{ mb: 1 }}>
-                🍚 Для энергии добавьте углеводы: рис, гречка, банан, овсянка
-              </Alert>
-            )}
-          </Paper>
-        </Grid>
-      </Grid>
+        {/* 3. Вес + Кнопка добавления */}
+        <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+          <TextField
+            label="Вес (г)"
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            value={weight}
+            onChange={(e) => setWeight(e.target.value.replace(/[^0-9]/g, ''))}
+            inputProps={{ style: { fontSize: 16, padding: '16px' } }}
+            sx={{ flex: 1 }}
+          />
+          <Button
+            variant="contained"
+            onClick={handleAdd}
+            disabled={!selectedFood}
+            disableTouchRipple
+            sx={{ px: 4, fontSize: '1.1rem', fontWeight: 600, minWidth: 140 }}
+          >
+            ➕ Добавить
+          </Button>
+        </Box>
+      </Paper>
+
+      {/* === СПИСОК СЪЕДЕННОГО === */}
+      <Paper sx={{ p: 2 }}>
+        <Typography variant="h6" sx={{ mb: 2, fontSize: '1.2rem', fontWeight: 600 }}>
+          🍽️ Сегодня съедено
+        </Typography>
+
+        {meals.length === 0 ? (
+          <Typography color="text.secondary" sx={{ py: 3, textAlign: 'center', fontSize: '1rem' }}>
+            Пока ничего не добавлено
+          </Typography>
+        ) : (
+          <Box>
+            {meals.map((meal, idx) => (
+              <React.Fragment key={meal.id}>
+                <Box sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  py: 1.5,
+                  px: 1
+                }}>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography sx={{ fontSize: '1.1rem', fontWeight: 500 }}>
+                      {meal.productName}
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.9rem', color: 'text.secondary', mt: 0.5 }}>
+                      {meal.amount}г • 🔥 {meal.calories} ккал | Б:{meal.protein}г Ж:{meal.fat}г У:{meal.carbs}г
+                    </Typography>
+                  </Box>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    size="small"
+                    onClick={() => onDeleteFood(meal.id)}
+                    disableTouchRipple
+                    sx={{ minWidth: 'auto', px: 2, py: 1, fontSize: '0.9rem', ml: 2 }}
+                  >
+                    🗑 Удалить
+                  </Button>
+                </Box>
+                {idx < meals.length - 1 && <Divider sx={{ my: 1 }} />}
+              </React.Fragment>
+            ))}
+          </Box>
+        )}
+      </Paper>
     </Container>
   );
 }
