@@ -11,36 +11,49 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
   const [isCustom, setIsCustom] = useState(false);
   const containerRef = useRef(null);
 
-  // 🔒 ТВ-НАВИГАЦИЯ
+  // 🔒 ТВ-НАВИГАЦИЯ: исправленная логика
   const handleKeyDownCapture = useCallback((e) => {
     const focusable = Array.from(containerRef.current.querySelectorAll('input, button'))
       .filter(el => !el.disabled && el.offsetParent !== null);
     const currentIdx = focusable.indexOf(document.activeElement);
+    const isInput = document.activeElement.tagName === 'INPUT';
+    const isButton = document.activeElement.tagName === 'BUTTON';
 
-    // Стрелки внутри ИНПУТОВ -> блокируем изменение значения
-    if (document.activeElement.tagName === 'INPUT' && ['ArrowUp', 'ArrowDown'].includes(e.key)) {
+    // 1. Стрелки внутри ИНПУТОВ -> блокируем изменение значения, переводим фокус
+    if (isInput && ['ArrowUp', 'ArrowDown'].includes(e.key)) {
       e.preventDefault();
-      const nextIdx = e.key === 'ArrowDown' ? Math.min(currentIdx + 1, focusable.length - 1) : Math.max(currentIdx - 1, 0);
+      const nextIdx = e.key === 'ArrowDown'
+        ? Math.min(currentIdx + 1, focusable.length - 1)
+        : Math.max(currentIdx - 1, 0);
       focusable[nextIdx]?.focus();
       return;
     }
 
-    // ВНИЗ / ВПРАВО / ENTER -> следующий элемент
-    if (['ArrowDown', 'ArrowRight', 'Enter', 'NumpadEnter'].includes(e.key)) {
+    // 2. ВНИЗ / ВПРАВО -> следующий элемент (для всех)
+    if (['ArrowDown', 'ArrowRight'].includes(e.key)) {
       e.preventDefault();
       const next = Math.min(currentIdx + 1, focusable.length - 1);
       focusable[next]?.focus();
     }
-    // ️ ВВЕРХ / ВЛЕВО -> предыдущий или выход на вкладки
+    // 3. ⬆️ ВВЕРХ / ⬅️ ВЛЕВО -> предыдущий или выход на вкладки
     else if (['ArrowUp', 'ArrowLeft'].includes(e.key)) {
       e.preventDefault();
       if (currentIdx === 0) {
+        // ЯВНЫЙ ВЫХОД НА ВКЛАДКИ (работает для обеих стрелок)
         const firstTab = document.querySelector('button[role="tab"]');
         if (firstTab) firstTab.focus();
       } else {
         focusable[currentIdx - 1]?.focus();
       }
     }
+    // 4. ENTER на ИНПУТЕ -> переход вниз (не на кнопках!)
+    else if ((e.key === 'Enter' || e.key === 'NumpadEnter') && isInput) {
+      e.preventDefault();
+      const next = Math.min(currentIdx + 1, focusable.length - 1);
+      focusable[next]?.focus();
+    }
+    // 5. ENTER на КНОПКЕ -> НЕ перехватываем, даём сработать нативно
+    // (кнопка сама себя нажмёт)
   }, []);
 
   // Автофокус на поиск
@@ -66,7 +79,7 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
     if (!selectedFood) return;
     const amount = parseInt(weight) || 100;
 
-    // ✅ Нормализуем поля базы (Per100g -> base names) для калькулятора
+    // Нормализуем поля базы (Per100g -> base names)
     const normalizedFood = {
       ...selectedFood,
       calories: selectedFood.caloriesPer100g || selectedFood.calories || 0,
@@ -77,10 +90,9 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
 
     let nutrition;
     if (isCustom) {
-      // Для своего продукта ищем похожий в базе или ставим 0
       const similar = foodDatabase.find(f => f.name.toLowerCase().includes(selectedFood.name.toLowerCase()));
       nutrition = similar
-        ? calculateNutritionForAmount(normalizedFood, amount) // используем нормализованный объект
+        ? calculateNutritionForAmount(normalizedFood, amount)
         : { calories: 0, protein: 0, fat: 0, carbs: 0 };
     } else {
       nutrition = calculateNutritionForAmount(normalizedFood, amount);
@@ -159,7 +171,7 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
           sx={{ mb: 2 }}
         />
 
-        {/* ✅ СПИСОК С ИСПРАВЛЕННЫМ ПОЛЕМ caloriesPer100g */}
+        {/* СПИСОК */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
           {filteredFoods.map((food) => (
             <Button
