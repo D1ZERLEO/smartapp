@@ -1,10 +1,10 @@
 {
   "files": {
-    "main.js": "/smartapp/static/js/main.b68027d0.js",
+    "main.js": "/smartapp/static/js/main.d3f0be02.js",
     "index.html": "/smartapp/index.html",
-    "main.b68027d0.js.map": "/smartapp/static/js/main.b68027d0.js.map"
+    "main.d3f0be02.js.map": "/smartapp/static/js/main.d3f0be02.js.map"
   },
   "entrypoints": [
-    "static/js/main.b68027d0.js"
+    "static/js/main.d3f0be02.js"
   ]
 }
