@@ -1,35 +1,35 @@
 theme: /
-state: ДобавитьПродукт
+    state: ДобавитьПродукт
+        q!: (добавь | съел | запиши | ем) [$Amount::amount] (грамм | г) $FoodName::foodName
 
-# ✅ Исправленные паттерны - количество может быть слитно с "г"
-q!: (добавь | съел | запиши | ем) [$Amount::amount] (грамм | г) $FoodName::foodName
-q!: (добавь | съел | запиши | ем) $FoodName::foodName
+        q!: (добавь | съел | запиши | ем) $FoodName::foodName
 
-script:
-  log('Добавление продукта: ' + JSON.stringify($parseTree));
+        script:
+            var foodName = $parseTree._foodName || "";
+            var amount = parseInt($parseTree._amount) || 100;
 
-  var amount = parseInt($parseTree._amount) || 100;
-  var foodName = $parseTree._foodName || "";
+            // ✅ Fallback: если NLU не выделила название, берём сырую фразу и чистим
+            if (!foodName) {
+                var raw = $context.request.rawRequest || "";
+                foodName = raw.replace(/добавь|съел|запиши|ем|100|грамм|г|\d+/gi, "").trim();
+            }
 
-  # ✅ Очищаем название от чисел и "г" в начале
-  foodName = foodName.replace(/^\d+\s*г\s*/i, '').trim();
+            var success = addFood(foodName, amount, $context);
 
-  # Если всё ещё пусто, берём как есть
-  if (!foodName) {
-    foodName = $parseTree._foodName;
-  }
+            if (success) {
+                $context.replyText = random([
+                    "Добавлено",
+                    "Записано",
+                    "Ок, добавил"
+                ]);
+                addSuggestions([
+                    "добавь 100г курицы",
+                    "сколько съел?",
+                    "что съесть?"
+                ], $context);
+            } else {
+                $context.replyText = "Продукт не найден в базе. Попробуй назвать проще (например: курица, гречка, овощи).";
+                addSuggestions(["помощь"], $context);
+            }
 
-  log('Очищенное название: ' + foodName + ', количество: ' + amount);
-
-  addFood(foodName, amount, $context);
-
-  addSuggestions([
-    "добавь 150г курицы",
-    "сколько съел?",
-    "что съесть?"
-  ], $context);
-
-  random:
-  a: "Добавил {{foodName}}"
-  a: "Записал {{foodName}}"
-  a: "Ок, {{foodName}} добавлен"
+        a: {{ $context.replyText }}

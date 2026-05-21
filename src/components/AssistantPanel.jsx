@@ -1,87 +1,95 @@
-// src/components/AssistantPanel.jsx
 import { useEffect, useRef } from 'react';
+import { createSmartappDebugger } from '@salutejs/client';
 
-export default function AssistantPanel({ onCommand, onBackendAction, token: tokenProp, smartappId: smartappIdProp, onReady }) {
+export default function AssistantPanel({
+  onCommand,
+  onBackendAction,
+  onReady,
+}) {
   const assistantRef = useRef(null);
-  const onBackendActionRef = useRef(onBackendAction);
-  const onCommandRef = useRef(onCommand);
-
-  useEffect(() => { onBackendActionRef.current = onBackendAction; }, [onBackendAction]);
-  useEffect(() => { onCommandRef.current = onCommand; }, [onCommand]);
 
   useEffect(() => {
-    // 🔥 НЕ ИМПОРТИРУЕМ @salutejs/client локально — только на Canvas
-    const isCanvas = window.appInitialData?.applicationId &&
-                     window.appInitialData?.token &&
-                     !window.appInitialData.applicationId.startsWith('mock');
+    let assistant;
 
-    if (!isCanvas) {
-      console.log('ℹ️ AssistantPanel: локальный режим (без SDK)');
-      const mockAssistant = {
-        on: () => {},
-        sendData: () => {},
-        start: () => console.log('✅ Mock assistant ready'),
-        close: () => {}
-      };
-      assistantRef.current = mockAssistant;
-      onReady?.(mockAssistant);
-      return;
+    try {
+      assistant = createSmartappDebugger({
+        token: process.env.REACT_APP_TOKEN,
+
+        smartAppBrain: {
+          smartappId: process.env.REACT_APP_SMARTAPP,
+        },
+
+        initPhrase: 'запусти приложение',
+
+        nativePanel: {
+          defaultText: 'Введите команду',
+        },
+
+        settings: {
+          disableTts: true,
+        },
+      });
+
+      assistant.on('data', async (event) => {
+        try {
+          console.log('ASSISTANT EVENT:', event);
+
+          // Canvas actions
+          if (event.action) {
+            onBackendAction?.(event.action);
+            return;
+          }
+
+          // Local text commands
+          const text =
+            event?.smart_app_data?.text ||
+            event?.payload?.text ||
+            '';
+
+          if (!text) return;
+
+          const response = await onCommand?.(text);
+
+          if (!response) return;
+
+          assistant.sendData({
+            action: {
+              action_id: 'assistant_reply',
+              parameters: {
+                text: response,
+              },
+            },
+          });
+
+        } catch (err) {
+          console.error('DATA ERROR:', err);
+        }
+      });
+
+      assistant.on('start', () => {
+        console.log('ASSISTANT STARTED');
+      });
+
+      assistant.on('error', (err) => {
+        console.error('SDK ERROR:', err);
+      });
+
+      assistantRef.current = assistant;
+
+      onReady?.(assistant);
+
+      assistant.start?.();
+
+    } catch (err) {
+      console.error('INIT ERROR:', err);
     }
 
-    // Canvas — импортируем SDK
-    import('@salutejs/client').then(({ createAssistant }) => {
-      const token = window.appInitialData.token;
-      const smartappId = window.appInitialData.projectId;
-
-      const getState = () => {
-        try {
-          const profile = JSON.parse(localStorage.getItem('nutrition_profile') || 'null');
-          const targets = JSON.parse(localStorage.getItem('nutrition_targets') || 'null');
-          const totals = JSON.parse(localStorage.getItem('nutrition_totals') || '{"calories":0,"protein":0,"fat":0,"carbs":0}');
-          const allMeals = JSON.parse(localStorage.getItem('nutrition_meals') || '[]');
-          const today = new Date().toISOString().split('T')[0];
-          const items = allMeals.filter(m => m.date === today).map((m, i) => ({
-            number: i + 1, id: m.id, title: `${m.productName} ${m.amount}г`
-          }));
-          return { profile, targets, totals, item_selector: { items, ignored_words: ['добавь','съел','запиши','удали','сколько','что съесть','помощь','найди','рецепт','осталось'] } };
-        } catch (e) { return {}; }
-      };
-
-      const getRecoveryState = () => {
-        try { return { profile: JSON.parse(localStorage.getItem('nutrition_profile') || 'null') }; }
-        catch (e) { return {}; }
-      };
-
+    return () => {
       try {
-        const assistant = createAssistant({ token, smartAppBrain: { smartappId }, getState, getRecoveryState });
-
-        assistant.on('data', (event) => {
-          if (event?.type !== 'smart_app_data') return;
-          if (event.action) onBackendActionRef.current?.(event.action);
-          if (event.smart_app_data?.text) {
-            const response = onCommandRef.current?.(event.smart_app_data.text);
-            if (response) {
-              assistant.sendData({
-                type: 'smart_app_data',
-                smart_app_data: { text: response, pronounceText: response }
-              });
-            }
-          }
-        });
-
-        assistant.on('start', () => console.log('✅ Assistant started (Canvas)'));
-        assistant.on('error', (err) => console.error('❌ Assistant error:', err));
-
-        assistantRef.current = assistant;
-        onReady?.(assistant);
-        assistant.start?.();
-
-        return () => { assistant.close?.(); assistantRef.current = null; };
-      } catch (err) {
-        console.error('🔥 Init error:', err);
-      }
-    }).catch(err => console.error('❌ SDK load error:', err));
-  }, [tokenProp, smartappIdProp, onReady]);
+        assistant?.close?.();
+      } catch {}
+    };
+  }, [onCommand, onBackendAction, onReady]);
 
   return null;
 }

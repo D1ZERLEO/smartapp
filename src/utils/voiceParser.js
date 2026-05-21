@@ -17,99 +17,93 @@ const normalizeProductName = (name) => {
 };
 
 export const parseNutritionCommand = (text, actions) => {
-  try {
-    const lower = text.toLowerCase().trim();
+  const lower = text.toLowerCase().trim();
 
-    // 1. ДОБАВЛЕНИЕ ПРОДУКТА
-    const addMatch = lower.match(/(?:добавь|съел|запиши|ем)\s+(?:(\d+)\s*(?:г|грамм)\s*)?([\wа-яё\- ]+)/i);
-    if (addMatch) {
-      const [, amountRaw, productName] = addMatch;
-      const amount = amountRaw ? parseInt(amountRaw) : 100;
-      const normalized = normalizeProductName(productName);
+  // 1. ДОБАВЛЕНИЕ ПРОДУКТА
+  const addMatch = lower.match(/(?:добавь|съел|запиши|ем)\s+(?:(\d+)\s*(?:г|грамм)\s*)?([\wа-яё\- ]+)/i);
+  if (addMatch) {
+    const [, amountRaw, productName] = addMatch;
+    const amount = amountRaw ? parseInt(amountRaw) : 100;
+    const normalized = normalizeProductName(productName);
 
-      const food = foodDatabase.find(f =>
-        f.name.toLowerCase().includes(normalized) ||
-        normalized.includes(f.name.toLowerCase())
-      );
+    const food = foodDatabase.find(f =>
+      f.name.toLowerCase().includes(normalized) ||
+      normalized.includes(f.name.toLowerCase())
+    );
 
-      if (food) {
-        try {
-          const nutrition = calculateNutritionForAmount(food, amount);
-          actions.addFood?.({
-            id: Date.now().toString(),
-            productName: food.name,
-            amount,
-            ...nutrition,
-            date: new Date().toISOString().split('T')[0],
-            timestamp: Date.now()
-          });
-          // 🔥 ВОЗВРАЩАЕМ ТЕКСТ ДЛЯ ПОЛЬЗОВАТЕЛЯ (не пустую строку!)
-          return `✅ Добавлено ${food.name} ${amount}г`;
-        } catch (e) {
-          console.error('Ошибка при добавлении:', e);
-          return "❌ Не удалось добавить продукт";
-        }
-      }
-      return `❌ Продукт "${productName}" не найден. Попробуй: курица, гречка, банан`;
-    }
-
-    // 2. ПРОГРЕСС
-    if (lower.includes('сколько съел') || lower.includes('калорий') || lower.includes('прогресс')) {
-      const t = actions.totals || {};
-      return `📊 Сегодня: ${t.calories || 0} ккал | Б:${t.protein || 0}г Ж:${t.fat || 0}г У:${t.carbs || 0}г`;
-    }
-
-    // 3. ОСТАЛОСЬ
-    if (lower.includes('осталось') || lower.includes('сколько можно')) {
-      const r = actions.remaining || {};
-      return `🎯 Осталось: ${r.calories ?? '?'} ккал | Б:${r.protein ?? '?'}г Ж:${r.fat ?? '?'}г У:${r.carbs ?? '?'}г`;
-    }
-
-    // 4. РЕКОМЕНДАЦИИ
-    if (lower.includes('что съесть') || lower.includes('посоветуй')) {
-      const recs = actions.recommendations || [];
-      if (recs.length) {
-        return `💡 Рекомендую: ${recs.map(r => r.items.join(', ')).join('; ')}`;
-      }
-      return '✨ Всё в норме! Можете позволить себе небольшой перекус';
-    }
-
-    // 5. РЕЦЕПТЫ
-    const recipeMatch = lower.match(/(?:рецепт|приготовь|найди).*?(?:из|с)?\s*(.+)/i);
-    if (recipeMatch) {
+    if (food) {
+      // 🔥 ВЫЗЫВАЕМ actions.addFood (даже если это пустая функция)
       try {
-        const raw = recipeMatch[1] || "";
-        const stemRu = (w) => w.toLowerCase().replace(/(ый|ий|ая|яя|ее|ие|ые|ое|ую|юю|ым|им|ого|его|у|а|е|о|ы|и|я|ю|ем|ом|ам|ям|ми)$/i, '');
-        const ingredients = raw.replace(/[.,!?;:]/g, '').split(/[\s,]+/).map(stemRu).filter(w => w.length > 2 && !['и','с','из','на','для'].includes(w));
-        actions.searchRecipes?.(ingredients);
-        return ingredients.length ? `🔍 Ищу рецепты с: ${ingredients.join(', ')}` : "🔍 Открываю все рецепты";
+        actions.addFood?.({
+          id: Date.now().toString(),
+          productName: food.name,
+          amount,
+          ...calculateNutritionForAmount(food, amount),
+          date: new Date().toISOString().split('T')[0],
+          timestamp: Date.now()
+        });
       } catch (e) {
-        console.error('Ошибка поиска рецептов:', e);
-        return "❌ Не удалось найти рецепты";
+        console.error('Ошибка в actions.addFood:', e);
       }
+
+      // 🔥 ВОЗВРАЩАЕМ ОТВЕТ (не пустую строку!)
+      return `✅ Добавлено ${food.name} ${amount}г`;
     }
 
-    // 6. УДАЛИТЬ
-    if (lower.includes('удали') || lower.includes('убери') || lower.includes('вычеркни')) {
-      try {
-        actions.deleteLastFood?.();
-        return "🗑️ Последняя запись удалена";
-      } catch (e) {
-        console.error('Ошибка удаления:', e);
-        return "❌ Не удалось удалить запись";
-      }
-    }
-
-    // 7. ПОМОЩЬ
-    if (lower.includes('помощь') || lower.includes('что умеешь') || lower.includes('команды')) {
-      return '🎤 Команды: «добавь 100г курицы», «сколько съел?», «что съесть?», «рецепт из яиц», «удали последнее»';
-    }
-
-    // 8. НЕ РАСПОЗНАНО
-    return '❓ Не поняла. Скажите «помощь» для списка команд';
-
-  } catch (e) {
-    console.error('🔥 Критическая ошибка в парсере:', e);
-    return "❌ Произошла ошибка. Попробуйте ещё раз или скажите «помощь»";
+    return `❌ Продукт "${productName}" не найден`;
   }
+
+  // 2. ПРОГРЕСС
+  if (lower.includes('сколько съел') || lower.includes('калорий') || lower.includes('прогресс')) {
+    const t = actions.totals || {};
+    return `📊 Сегодня: ${t.calories || 0} ккал | Б:${t.protein || 0}г Ж:${t.fat || 0}г У:${t.carbs || 0}г`;
+  }
+
+  // 3. ОСТАЛОСЬ
+  if (lower.includes('осталось') || lower.includes('сколько можно')) {
+    const r = actions.remaining || {};
+    return `🎯 Осталось: ${r.calories ?? '?'} ккал`;
+  }
+
+  // 4. РЕКОМЕНДАЦИИ
+  if (lower.includes('что съесть') || lower.includes('посоветуй')) {
+    const recs = actions.recommendations || [];
+    if (recs.length) {
+      return `💡 Рекомендую: ${recs.map(r => r.items?.join(', ') || '').join('; ')}`;
+    }
+    return '✨ Всё в норме!';
+  }
+
+  // 5. РЕЦЕПТЫ
+  const recipeMatch = lower.match(/(?:рецепт|приготовь|найди).*?(?:из|с)?\s*(.+)/i);
+  if (recipeMatch) {
+    const raw = recipeMatch[1] || "";
+    const ingredients = raw.replace(/[.,!?;:]/g, '').split(/[\s,]+/).filter(w => w.length > 2);
+
+    try {
+      actions.searchRecipes?.(ingredients);
+    } catch (e) {
+      console.error('Ошибка в actions.searchRecipes:', e);
+    }
+
+    return ingredients.length ? `🔍 Ищу: ${ingredients.join(', ')}` : "🔍 Ищу рецепты";
+  }
+
+  // 6. УДАЛИТЬ
+  if (lower.includes('удали') || lower.includes('убери')) {
+    try {
+      actions.deleteLastFood?.();
+    } catch (e) {
+      console.error('Ошибка в actions.deleteLastFood:', e);
+    }
+    return "🗑️ Удалено";
+  }
+
+  // 7. ПОМОЩЬ
+  if (lower.includes('помощь') || lower.includes('что умеешь')) {
+    return '🎤 Команды: «добавь 100г курицы», «сколько съел?», «что съесть?», «удали последнее»';
+  }
+
+  // 8. НЕ РАСПОЗНАНО
+  return '❓ Не распознано. Скажите «помощь»';
 };
