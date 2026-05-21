@@ -11,7 +11,7 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
   const [isCustom, setIsCustom] = useState(false);
   const containerRef = useRef(null);
 
-  // 🔒 ТВ-НАВИГАЦИЯ: исправленная логика
+  // 🔒 ТВ-НАВИГАЦИЯ: исправленная логика фокуса
   const handleKeyDownCapture = useCallback((e) => {
     const focusable = Array.from(containerRef.current.querySelectorAll('input, button'))
       .filter(el => !el.disabled && el.offsetParent !== null);
@@ -29,31 +29,41 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
       return;
     }
 
-    // 2. ВНИЗ / ВПРАВО -> следующий элемент (для всех)
+    // 2. ВНИЗ / ВПРАВО -> следующий элемент
     if (['ArrowDown', 'ArrowRight'].includes(e.key)) {
       e.preventDefault();
-      const next = Math.min(currentIdx + 1, focusable.length - 1);
-      focusable[next]?.focus();
+      focusable[Math.min(currentIdx + 1, focusable.length - 1)]?.focus();
     }
-    // 3. ⬆️ ВВЕРХ / ⬅️ ВЛЕВО -> предыдущий или выход на вкладки
+    // 3. ️ ВВЕРХ / ⬅️ ВЛЕВО -> предыдущий или выход на вкладки
     else if (['ArrowUp', 'ArrowLeft'].includes(e.key)) {
       e.preventDefault();
       if (currentIdx === 0) {
-        // ЯВНЫЙ ВЫХОД НА ВКЛАДКИ (работает для обеих стрелок)
         const firstTab = document.querySelector('button[role="tab"]');
         if (firstTab) firstTab.focus();
       } else {
         focusable[currentIdx - 1]?.focus();
       }
     }
-    // 4. ENTER на ИНПУТЕ -> переход вниз (не на кнопках!)
+    // 4. ENTER на ПОИСКЕ -> умный переход (на кнопку "Свой продукт" или первый продукт)
+    else if ((e.key === 'Enter' || e.key === 'NumpadEnter') && document.activeElement.id === 'diary-search') {
+      e.preventDefault();
+      // Ищем кнопку "Свой продукт" по data-атрибуту
+      const customBtn = containerRef.current.querySelector('[data-type="custom-add"]');
+      if (customBtn && customBtn.offsetParent !== null) {
+        customBtn.focus();
+      } else {
+        // Если кнопки нет, идём на первый продукт в списке
+        const firstFoodBtn = containerRef.current.querySelector('.food-list-btn');
+        if (firstFoodBtn) firstFoodBtn.focus();
+        else focusable[Math.min(currentIdx + 1, focusable.length - 1)]?.focus();
+      }
+    }
+    // 5. ENTER на ДРУГИХ ИНПУТАХ -> переход вниз
     else if ((e.key === 'Enter' || e.key === 'NumpadEnter') && isInput) {
       e.preventDefault();
-      const next = Math.min(currentIdx + 1, focusable.length - 1);
-      focusable[next]?.focus();
+      focusable[Math.min(currentIdx + 1, focusable.length - 1)]?.focus();
     }
-    // 5. ENTER на КНОПКЕ -> НЕ перехватываем, даём сработать нативно
-    // (кнопка сама себя нажмёт)
+    // 6. ENTER на КНОПКАХ -> НЕ перехватываем, даём сработать нативно (клик)
   }, []);
 
   // Автофокус на поиск
@@ -79,7 +89,6 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
     if (!selectedFood) return;
     const amount = parseInt(weight) || 100;
 
-    // Нормализуем поля базы (Per100g -> base names)
     const normalizedFood = {
       ...selectedFood,
       calories: selectedFood.caloriesPer100g || selectedFood.calories || 0,
@@ -155,7 +164,7 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
 
       {/* === 3. ДОБАВЛЕНИЕ ПРОДУКТА === */}
       <Paper sx={{ p: 2, mb: 3 }}>
-        <Typography variant="h6" sx={{ mb: 2, fontSize: '1.2rem', fontWeight: 600 }}>📋 Добавить продукт</Typography>
+        <Typography variant="h6" sx={{ mb: 2, fontSize: '1.2rem', fontWeight: 600 }}> Добавить продукт</Typography>
 
         <TextField
           id="diary-search"
@@ -176,6 +185,7 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
           {filteredFoods.map((food) => (
             <Button
               key={food.name}
+              className="food-list-btn"
               variant={selectedFood?.name === food.name && !isCustom ? 'contained' : 'outlined'}
               onClick={() => handleSelectFood(food, false)}
               disableTouchRipple
@@ -197,9 +207,10 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
             </Button>
           ))}
 
-          {/* Кнопка "Свой продукт" */}
+          {/* Кнопка "Свой продукт" (с data-атрибутом для точного поиска фокусом) */}
           {search.length > 2 && filteredFoods.length === 0 && (
             <Button
+              data-type="custom-add"
               variant="outlined"
               color="secondary"
               onClick={() => handleSelectFood({ name: search }, true)}
@@ -238,7 +249,7 @@ export default function FoodDiary({ targets, totals, onAddFood, onDeleteFood, me
 
       {/* === 4. СЪЕДЕННОЕ === */}
       <Paper sx={{ p: 2 }}>
-        <Typography variant="h6" sx={{ mb: 2, fontSize: '1.2rem', fontWeight: 600 }}>🍽️ Сегодня съедено</Typography>
+        <Typography variant="h6" sx={{ mb: 2, fontSize: '1.2rem', fontWeight: 600 }}>️ Сегодня съедено</Typography>
         {meals.length === 0 ? (
           <Typography color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>Пока ничего не добавлено</Typography>
         ) : (
